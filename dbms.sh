@@ -22,13 +22,46 @@ ARROW="→"
 
 
 # =====> Helper Functions <=====
-# Function to check if input is alphabetic
+# Function to check if the input is alphabetic
 is_alpha() {
-    if [[ "$1" =~ ^[a-zA-Z-]+$ ]]; then
+    if [[ "$1" =~ ^[a-zA-Z-]+$ && -n "$1" ]]; then
         return 0  
     else
         return 1  
     fi
+}
+
+# Function to check if the input is numeric
+is_numeric() {
+    if [[ "$1" =~ ^[0-9]+$ ]]; then
+        return 0 
+    else
+        return 1  
+    fi
+}
+
+# check if a column exists in a table
+is_column_exists() {
+    if grep -wq "$1" "$2"; then
+        return 0  
+    else
+        return 1 
+    fi
+}
+
+# Function that prompts user to choose y/n for action confirmation 
+confirm_action() {
+	 read -p "${ARROW}: " choice
+
+         # Convert the user's input to lowercase for case-insensitive comparison
+         choice=$(echo "$choice" | tr '[:upper:]' '[:lower:]')
+ 
+         # Check if the input is 'yes' or 'y'
+         if [[ "$choice" == "yes" || "$choice" == "y" ]]; then
+                 return 0
+         else    
+                 return 1
+         fi
 }
 
 # Function to confirm deletion
@@ -36,17 +69,8 @@ confirm_deletion() {
 
 	# Prompt the user for confirmation
 	echo -e "${RED} ${ARROW} Are you sure you want to delete the database '$1'? (yes/y to confirm): ${YELLOW}"
-	read -p "${ARROW}: " choice
 
-	# Convert the user's input to lowercase for case-insensitive comparison
-    	choice=$(echo "$choice" | tr '[:upper:]' '[:lower:]')
-
-    	# Check if the input is 'yes' or 'y'
-    	if [[ "$choice" == "yes" || "$choice" == "y" ]]; then
-        	return 0  
-    	else
-        	return 1  
-    	fi
+	confirm_action
 }
 
 # Function to ensure input is not empty
@@ -213,16 +237,121 @@ render_main_menu() {
 				echo;;
 
 	esac
-done	
+	done	
 }
 
 # =====> Sub-Menu Functions <=====
+render_col_datatype_menu() {
+	options=(str int)
+	select option in ${options[@]}; do
+		case $option in
+			str) echo str; break;;
+			int) echo int; break;;
+		esac
+	done
+}
+
+create_table() {
+	echo -ne "${ARROW} ${BLUE} Please enter a table name: ${YELLOW}"
+	read tblName
+	check_non_empty $tblName
+	if [ $? -ne 0 ] ; then
+                  echo
+                  echo -e "${RED} ${CROSSMARK} Fail: Table name can't be empty ${YELLOW}"
+                  echo
+	else
+		if [ -f $tblName ]; then
+			echo
+			echo -e "${RED} ${CROSSMARK} Fail: This name already exist ${YELLOW}"
+			echo
+
+		else
+			if is_alpha $tblName; then
+				echo -ne "${ARROW} ${BLUE} Please enter number of columns: ${YELLOW}"
+				read numberOfCols
+
+				while ! is_numeric $numberOfCols; do
+					echo
+					echo -e "${RED} ${CROSSMARK} Fail: Please enter a valid number ${YELLOW}"
+					echo
+					echo -ne "${ARROW} ${BLUE} Please enter number of columns: ${YELLOW}"
+					read numberOfCols
+				done
+
+				touch .$tblName-metadata
+
+				isPkExists=0
+				for ((i=1;i<=numberOfCols;i++)); do
+					line=""
+
+					while true; do
+						echo -ne "${ARROW} ${BLUE} column number $i name: ${YELLOW}"
+						read colName
+						
+						# Check if the column name is non-empty
+						if ! check_non_empty "$colName"; then
+								echo -e "${RED} ${CROSSMARK} Fail: Column name can't be empty ${YELLOW}"
+								continue
+						fi
+						
+						# Check if the column name contains only alphabetic characters and hyphen
+						if ! is_alpha "$colName"; then
+								echo -e "${RED} ${CROSSMARK} Fail: Column name can only contain alphabetic characters and - ${YELLOW}"
+								continue
+						fi
+						
+						# Check if the column name already exists
+						if is_column_exists $colName ".${tblName}-metadata"; then
+								echo -e "${RED} ${CROSSMARK} Fail: Column with the same name already exists ${YELLOW}"
+								continue
+						fi
+						
+						break
+					done
+					
+					line+=$colName:
+
+					echo
+					echo -e "${CYAN} ### Column Datatype Options Menu ###"
+					echo -e "-------------------------------------------------${YELLOW}"	
+
+					line+=$(render_col_datatype_menu):
+					echo $line
+
+					if [ $isPkExists -eq 0 ]; then
+						echo -ne "${ARROW} ${BLUE} Do you want to make column: $colName the primary key: ${YELLOW}"
+						if confirm_action; then
+							line+=pk
+							isPkExists=1
+						fi
+					fi
+
+					echo $line >> .$tblName-metadata
+				done
+
+				touch $tblName
+			
+				echo
+				echo -e "${GREEN} ${CHECKMARK} Success: Table created Successfully ${YELLOW}"
+				echo	
+			
+			else
+				echo
+				echo -e "${RED} ${CROSSMARK} Fail: table name can only contain alphabetic characters and - ${YELLOW}"
+				echo
+			fi
+		fi
+	fi
+
+}
+
 return_to_main_menu() {
 	
 	cd ..	
 	PS3="${ARROW} Please select an option: "
 	display_main_menu_options
 }
+
 # Function to show table controls menu
 render_table_control_menu() {
 	dml=(create_table list_tables drop_table insert_into select_from delete_from update_table main_menu clear_screen quit)
@@ -232,7 +361,7 @@ render_table_control_menu() {
 	echo
 	select option in ${dml[@]}; do
 		case $option in
-			create_table) echo Creating table...;;
+			create_table) create_table;;
 			list_tables) echo Listing tables...;;
 			drop_table) echo Dropping table...;;
 			insert_into) echo Inserting...;;
