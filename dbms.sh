@@ -251,6 +251,16 @@ render_col_datatype_menu() {
 	done
 }
 
+# Function to check if the value already exists
+# Usage: column-Number, table_name, entered_value
+is_duplicate_pk_value() {
+	if awk -F ":" -v value="$3" '{if ($1 == value) found=1} END {exit !found}' "$2"; then
+		return 0
+	else
+		return 1
+	fi
+}
+
 create_table() {
 	echo -ne "${ARROW} ${BLUE} Please enter a table name: ${YELLOW}"
 	read tblName
@@ -316,14 +326,17 @@ create_table() {
 					echo -e "-------------------------------------------------${YELLOW}"	
 
 					line+=$(render_col_datatype_menu):
-					echo $line
 
 					if [ $isPkExists -eq 0 ]; then
 						echo -ne "${ARROW} ${BLUE} Do you want to make column: $colName the primary key: ${YELLOW}"
 						if confirm_action; then
 							line+=pk
 							isPkExists=1
+						else
+						line+="null"
 						fi
+					else
+						line+="null"
 					fi
 
 					echo $line >> .$tblName-metadata
@@ -345,8 +358,76 @@ create_table() {
 
 }
 
-return_to_main_menu() {
-	
+insert_into() {
+	echo -ne "${ARROW} ${BLUE} Please enter a table name: ${YELLOW}"
+  read tblName
+  check_non_empty $tblName
+  if [ $? -ne 0 ] ; then
+	  echo
+    echo -e "${RED} ${CROSSMARK} Fail: Table name can't be empty ${YELLOW}"
+    echo
+  else
+		if [ -f $tblName ]; then
+			numberOfCols=$(wc -l .$tblName-metadata | cut -d" " -f1)
+			line=""
+			for ((i=1; i<=numberOfCols; i++)); do
+			  col=$(sed -n "${i}p" .$tblName-metadata)
+				colName=$(echo $col | cut -d: -f1)
+				colDataType=$(echo $col | cut -d: -f2)
+				colPkCheck=$(echo $col | cut -d: -f3)
+
+				while true; do
+					echo -ne "${ARROW} ${BLUE} Please enter value for column: $colName ($colDataType): ${YELLOW}"
+        	read value
+					if ! check_non_empty "$value"; then
+					  echo -e "${RED} ${CROSSMARK} Fail: Value can't be empty ${YELLOW}"
+            continue
+          fi
+					case $colDataType in
+						str) if ! is_alpha $value; then
+							echo -e "${RED} ${CROSSMARK} Fail: Value should be a string ${YELLOW}"
+							continue
+							fi
+							;;
+						int) if ! is_numeric $value; then
+							echo -e "${RED} ${CROSSMARK} Fail: Value should be a number ${YELLOW}"
+							continue
+							fi
+					esac
+
+					if [[ $colPkCheck == "pk" ]]; then
+					  if is_duplicate_pk_value $i $tblName $value; then
+						  echo -e "${RED} ${CROSSMARK} Fail: Duplicate primary key value ${YELLOW}"
+              continue
+            fi
+          fi
+
+					break
+				done
+
+				# To prevent printing ":" at the end of the last column
+				if [ $i -eq $numberOfCols ]; then
+					line+=$value
+				else
+					line+=$value:
+				fi
+
+      done
+			echo $line >> $tblName
+      echo
+      echo -e "${GREEN} ${CHECKMARK} Success: Row inserted successfully ${YELLOW}"
+      echo
+		else
+		  echo
+      echo -e "${RED} ${CROSSMARK} Fail: Invalid table name ${YELLOW}"
+      echo
+		fi
+    
+
+	fi
+}
+
+return_to_main_menu() {	
 	cd ..	
 	PS3="${ARROW} Please select an option: "
 	display_main_menu_options
@@ -364,7 +445,7 @@ render_table_control_menu() {
 			create_table) create_table;;
 			list_tables) echo Listing tables...;;
 			drop_table) echo Dropping table...;;
-			insert_into) echo Inserting...;;
+			insert_into) insert_into;;
 			select_from) echo Selecting...;;
 			delete_from) echo Deleting...;;
 			update_table) echo Updating...;;
