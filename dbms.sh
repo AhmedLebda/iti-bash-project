@@ -381,70 +381,72 @@ create_table() {
 insert_into() {
 	echo -ne "${ARROW} ${BLUE} Please enter a table name: ${YELLOW}"
   read tblName
-  check_non_empty $tblName
-  if [ $? -ne 0 ] ; then
-	  echo
-    echo -e "${RED} ${CROSSMARK} Fail: Table name can't be empty ${YELLOW}"
-    echo
-  else
-		if [ -f $tblName ]; then
-			numberOfCols=$(wc -l .$tblName-metadata | cut -d" " -f1)
-			line=""
-			for ((i=1; i<=numberOfCols; i++)); do
-			  col=$(sed -n "${i}p" .$tblName-metadata)
-				colName=$(echo $col | cut -d: -f1)
-				colDataType=$(echo $col | cut -d: -f2)
-				colPkCheck=$(echo $col | cut -d: -f3)
 
-				while true; do
-					echo -ne "${ARROW} ${BLUE} Please enter value for column: $colName ($colDataType): ${YELLOW}"
-        	read value
-					if ! check_non_empty "$value"; then
-					  echo -e "${RED} ${CROSSMARK} Fail: Value can't be empty ${YELLOW}"
-            continue
-          fi
-					case $colDataType in
-						str) if ! is_alpha $value; then
-							echo -e "${RED} ${CROSSMARK} Fail: Value should be a string ${YELLOW}"
-							continue
-							fi
-							;;
-						int) if ! is_numeric $value; then
-							echo -e "${RED} ${CROSSMARK} Fail: Value should be a number ${YELLOW}"
-							continue
-							fi
-					esac
-
-					if [[ $colPkCheck == "pk" ]]; then
-					  if is_duplicate_pk_value $i $tblName $value; then
-						  echo -e "${RED} ${CROSSMARK} Fail: Duplicate primary key value ${YELLOW}"
-              continue
-            fi
-          fi
-
-					break
-				done
-
-				# To prevent printing ":" at the end of the last column
-				if [ $i -eq $numberOfCols ]; then
-					line+=$value
-				else
-					line+=$value:
-				fi
-
-      done
-			echo $line >> $tblName
-      echo
-      echo -e "${GREEN} ${CHECKMARK} Success: Row inserted successfully ${YELLOW}"
-      echo
-		else
-		  echo
-      echo -e "${RED} ${CROSSMARK} Fail: Invalid table name ${YELLOW}"
-      echo
-		fi
-    
-
+	if ! check_non_empty "$tblName"; then
+		echo
+		echo -e "${RED} ${CROSSMARK} Fail: Db name can't be empty ${YELLOW}"
+		echo
+		return 1
 	fi
+
+  if [ ! -f $tblName ]; then
+			echo
+			echo -e "${RED} ${CROSSMARK} Fail: This table doesn't exist ${YELLOW}"
+			echo
+			return 1
+  fi
+
+	numberOfCols=$(wc -l .$tblName-metadata | cut -d" " -f1)
+	line=""
+	for ((i=1; i<=numberOfCols; i++)); do
+		col=$(sed -n "${i}p" .$tblName-metadata)
+		colName=$(echo $col | cut -d: -f1)
+		colDataType=$(echo $col | cut -d: -f2)
+		colPkCheck=$(echo $col | cut -d: -f3)
+
+		while true; do
+			echo -ne "${ARROW} ${BLUE} Please enter value for column: $colName ($colDataType): ${YELLOW}"
+			read value
+
+			case $colDataType in
+				str) if [[ "$value" == *:* ]]; then
+						echo -e "${RED} ${CROSSMARK} Fail: Value should not contain ':' ${YELLOW}"
+						continue
+				elif ! check_non_empty "$value"; then
+						value="NULL"
+				fi
+          ;;
+				int) if ! is_numeric $value; then
+					echo -e "${RED} ${CROSSMARK} Fail: Value should be a number ${YELLOW}"
+					continue
+					fi
+			esac
+
+			if [[ $colPkCheck == "pk" ]]; then
+				if is_duplicate_pk_value $i $tblName $value; then
+					echo -e "${RED} ${CROSSMARK} Fail: Duplicate primary key value ${YELLOW}"
+					continue
+				fi
+			fi
+
+			break
+		done
+
+		# To prevent printing ":" at the end of the last column
+		if [ $i -eq $numberOfCols ]; then
+			line+=$value
+		else
+			line+=$value:
+		fi
+
+	done
+	
+	echo $line >> $tblName
+
+	echo
+	echo -e "${GREEN} ${CHECKMARK} Success: Row inserted successfully ${YELLOW}"
+	echo
+  
 }
 
 list_tables() {
