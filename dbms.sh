@@ -427,6 +427,85 @@ insert_into() {
 	fi
 }
 
+
+
+
+
+
+list_tables() {
+	numberOfTables=$(ls | wc -l)
+	if [ $numberOfTables -eq 0 ]; then
+		echo -e ${RED}
+		echo -e "${CROSSMARK} You don't have any tables"
+		echo -e ${YELLOW}
+	else
+		echo -e "${GREEN} ${CHECKMARK} List of all tables: ${YELLOW}"
+		echo -e "${BLUE}" 
+		ls
+		echo -e "${YELLOW}" 
+	fi
+}
+
+
+drop_table() {
+	echo -ne "${ARROW} ${BLUE} Please enter a table name: ${YELLOW}"
+	read tblName
+	check_non_empty $tblName
+	if [ $? -ne 0 ] ; then
+		echo
+		echo -e "${RED} ${CROSSMARK} Fail: Table name can't be empty ${YELLOW}"
+		echo
+	else
+		if [ -f $tblName ]; then
+			if confirm_deletion $tblName; then
+				rm $tblName
+				rm .$tblName-metadata
+				echo
+				echo Dropping table...
+				echo -e "${GREEN} ${CHECKMARK} Suceess: Table dropped: $tblName ${YELLOW}"
+				echo
+			else
+				echo
+				echo -e "${RED} ${CROSSMARK} Fail: Table ${tblName} was not deleted. ${YELLOW}"
+				echo
+			fi
+		else
+			echo
+			echo -e "${RED} ${CROSSMARK} Fail: Invalid table name ${YELLOW}"
+			echo
+		fi
+	fi
+}
+
+# select_from() {
+# 	echo -ne "${ARROW} ${BLUE} Please enter a table name: ${YELLOW}"
+# 	read tblName
+# 	check_non_empty $tblName
+# 	if [ $? -ne 0 ] ; then
+# 		echo
+# 		echo -e "${RED} ${CROSSMARK} Fail: Table name can't be empty ${YELLOW}"
+# 		echo
+# 	else
+# 		if [ -f $tblName ]; then
+# 			numberOfCols=$(wc -l .$tblName-metadata | cut -d" " -f1)
+#     read colName
+# 			for ((i=1; i<=numberOfCols; i++)); do
+# 				col=$(sed -n "${i}p" .$tblName-metadata)
+# 				colName=$(echo $col | cut -d: -f1)
+# 				colDataType=$(echo $col | cut -d: -f2)
+# 				echo -e "${CYAN} ${colName} (${colDataType}) ${YELLOW}"
+# 			done
+# 			echo
+# 			echo -e "${GREEN} ${CHECKMARK} Success: Table selected ${YELLOW}"
+# 			echo
+# 		else
+# 			echo
+# 			echo -e "${RED} ${CROSSMARK} Fail: Invalid table name ${YELLOW}"
+# 			echo
+# 		fi
+# 	fi
+# }
+
 return_to_main_menu() {	
 	cd ..	
 	PS3="${ARROW} Please select an option: "
@@ -443,8 +522,8 @@ render_table_control_menu() {
 	select option in ${dml[@]}; do
 		case $option in
 			create_table) create_table;;
-			list_tables) echo Listing tables...;;
-			drop_table) echo Dropping table...;;
+			list_tables) echo Listing tables...; list_tables;;
+			drop_table) drop_table;;
 			insert_into) insert_into;;
 			select_from) echo Selecting...;;
 			delete_from) echo Deleting...;;
