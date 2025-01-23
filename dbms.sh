@@ -477,34 +477,45 @@ drop_table() {
 	fi
 }
 
-# select_from() {
-# 	echo -ne "${ARROW} ${BLUE} Please enter a table name: ${YELLOW}"
-# 	read tblName
-# 	check_non_empty $tblName
-# 	if [ $? -ne 0 ] ; then
-# 		echo
-# 		echo -e "${RED} ${CROSSMARK} Fail: Table name can't be empty ${YELLOW}"
-# 		echo
-# 	else
-# 		if [ -f $tblName ]; then
-# 			numberOfCols=$(wc -l .$tblName-metadata | cut -d" " -f1)
-#     read colName
-# 			for ((i=1; i<=numberOfCols; i++)); do
-# 				col=$(sed -n "${i}p" .$tblName-metadata)
-# 				colName=$(echo $col | cut -d: -f1)
-# 				colDataType=$(echo $col | cut -d: -f2)
-# 				echo -e "${CYAN} ${colName} (${colDataType}) ${YELLOW}"
-# 			done
-# 			echo
-# 			echo -e "${GREEN} ${CHECKMARK} Success: Table selected ${YELLOW}"
-# 			echo
-# 		else
-# 			echo
-# 			echo -e "${RED} ${CROSSMARK} Fail: Invalid table name ${YELLOW}"
-# 			echo
-# 		fi
-# 	fi
-# }
+select_from() {
+	echo -ne "${ARROW} ${BLUE} Please enter a table name: ${YELLOW}"
+	read tblName
+	check_non_empty $tblName
+	if [ $? -ne 0 ] ; then
+		echo
+		echo -e "${RED} ${CROSSMARK} Fail: Table name can't be empty ${YELLOW}"
+		echo
+	else
+		if [ -f $tblName ]; then
+			# awk -F: '{print $0}' $tblName
+			echo -ne "${ARROW} ${BLUE} Please enter a column name: ${YELLOW}"
+			read columnName
+			if [[ -z "$columnName" ]]; then
+				echo
+				echo -e "${RED} ${CROSSMARK} Fail: Column name can't be empty ${YELLOW}"
+				echo
+			else
+				if is_column_exists $columnName ".$tblName-metadata"; then
+					awk -F: '{print $0}' $tblName | cut -d: -f1
+					echo
+					echo -e "${GREEN} ${CHECKMARK} Success: Table selected ${YELLOW}"
+					echo
+				else
+					echo
+					echo -e "${RED} ${CROSSMARK} Fail: Invalid column name ${YELLOW}"
+					echo
+				fi
+			fi
+			echo
+			echo -e "${GREEN} ${CHECKMARK} Success: Table selected ${YELLOW}"
+			echo
+		else
+			echo
+			echo -e "${RED} ${CROSSMARK} Fail: Invalid table name ${YELLOW}"
+			echo
+		fi
+	fi
+}
 
 return_to_main_menu() {	
 	cd ..	
@@ -525,7 +536,7 @@ render_table_control_menu() {
 			list_tables) echo Listing tables...; list_tables;;
 			drop_table) drop_table;;
 			insert_into) insert_into;;
-			select_from) echo Selecting...;;
+			select_from) select_from;;
 			delete_from) echo Deleting...;;
 			update_table) echo Updating...;;
 			main_menu)
