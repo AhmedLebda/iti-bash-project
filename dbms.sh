@@ -291,6 +291,7 @@ create_table() {
 				touch .$tblName-metadata
 
 				isPkExists=0
+				tableHeader=""
 				for ((i=1;i<=numberOfCols;i++)); do
 					line=""
 
@@ -320,6 +321,11 @@ create_table() {
 					done
 					
 					line+=$colName:
+					if [ $i -eq $numberOfCols ]; then
+            tableHeader+=$colName
+          else
+            tableHeader+=$colName:
+          fi
 
 					echo
 					echo -e "${CYAN} ### Column Datatype Options Menu ###"
@@ -341,8 +347,9 @@ create_table() {
 
 					echo $line >> .$tblName-metadata
 				done
+					echo $tableHeader > $tblName
 
-				touch $tblName
+				## touch $tblName
 			
 				echo
 				echo -e "${GREEN} ${CHECKMARK} Success: Table created Successfully ${YELLOW}"
@@ -427,11 +434,6 @@ insert_into() {
 	fi
 }
 
-
-
-
-
-
 list_tables() {
 	numberOfTables=$(ls | wc -l)
 	if [ $numberOfTables -eq 0 ]; then
@@ -462,7 +464,7 @@ drop_table() {
 				rm .$tblName-metadata
 				echo
 				echo Dropping table...
-				echo -e "${GREEN} ${CHECKMARK} Suceess: Table dropped: $tblName ${YELLOW}"
+				echo -e "${GREEN} ${CHECKMARK} Success: Table dropped: $tblName ${YELLOW}"
 				echo
 			else
 				echo
@@ -506,6 +508,83 @@ drop_table() {
 # 	fi
 # }
 
+
+# Function to delete a record from a table
+delete_from() {
+	echo -ne "${ARROW} ${BLUE} Please enter a table name: ${YELLOW}"
+  read tblName
+
+	# Empty Table Name
+  check_non_empty $tblName
+  if [ $? -ne 0 ]; then
+    echo
+    echo -e "${RED} ${CROSSMARK} Fail: Table name can't be empty ${YELLOW}"
+    echo
+    return 1
+  fi
+
+	# Invalid Table Name
+	if [ ! -f $tblName ]; then
+    echo
+    echo -e "${RED} ${CROSSMARK} Fail: Invalid table name ${YELLOW}"
+    echo
+    return 1
+  fi
+
+	echo -ne "${ARROW} ${BLUE} Please enter the column name for the WHERE clause: ${YELLOW}"
+  read colName
+
+	check_non_empty $colName
+  if [ $? -ne 0 ]; then
+    echo
+    echo -e "${RED} ${CROSSMARK} Fail: Column name can't be empty ${YELLOW}"
+    echo
+    return 1
+  fi
+
+	# column name doesn't exist
+	if ! is_column_exists $colName ".${tblName}-metadata"; then
+			echo -e "${RED} ${CROSSMARK} Fail: Column doesn't exist ${YELLOW}"
+			return 1
+	fi
+
+	echo -ne "${ARROW} ${BLUE} Please enter the value for the WHERE clause: ${YELLOW}"
+  read colValue
+	check_non_empty $colValue
+  if [ $? -ne 0 ]; then
+    echo
+    echo -e "${RED} ${CROSSMARK} Fail: Value can't be empty ${YELLOW}"
+    echo
+    return 1
+  fi
+
+	# Use awk to filter and delete rows
+	awk -v colName="$colName" -v colValue="$colValue" '
+  BEGIN { FS = ":"; OFS = ":" } 
+  NR==1 { 
+		print; 
+    for(i=1;i<=NF;i++){
+      if($i==colName){ 
+        colIndex=i; 
+        next; 
+      }
+    }
+    print "Error: Column '"colName"' not found in header."; 
+    exit 1; 
+  }
+  { 
+    if(NR==1 || $colIndex != colValue) { 
+      print $0; 
+    }
+  }
+	' "$tblName" > temp_file && mv temp_file "$tblName"
+
+	echo
+  echo -e "${GREEN} ${CHECKMARK} Success: Row(s) deleted successfully ${YELLOW}"
+  echo
+
+}
+
 return_to_main_menu() {	
 	cd ..	
 	PS3="${ARROW} Please select an option: "
@@ -526,7 +605,7 @@ render_table_control_menu() {
 			drop_table) drop_table;;
 			insert_into) insert_into;;
 			select_from) echo Selecting...;;
-			delete_from) echo Deleting...;;
+			delete_from) delete_from;;
 			update_table) echo Updating...;;
 			main_menu)
 				return_to_main_menu
