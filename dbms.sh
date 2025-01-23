@@ -24,7 +24,7 @@ ARROW="→"
 # =====> Helper Functions <=====
 # Function to check if the input is alphabetic
 is_alpha() {
-    if [[ "$1" =~ ^[a-zA-Z-]+$ && -n "$1" ]]; then
+    if [[ "$1" =~ ^[a-zA-Z_-]+$ ]]; then
         return 0  
     else
         return 1  
@@ -111,38 +111,41 @@ display_sub_menu_options() {
 	echo
 }
 
-# =====> Main Menu Functions <=====
-# Function to handle db creation option
+# =====> Main Menu Functions <===== #
+
+########## Create Database ##########
 create_db() {
 	echo -ne "${ARROW} ${BLUE} Please enter a db name: ${YELLOW}"
 	read dbName
-	check_non_empty $dbName
-	if [ $? -ne 0 ] ; then
+
+	if ! check_non_empty "$dbName"; then
 		echo
 		echo -e "${RED} ${CROSSMARK} Fail: Db name can't be empty ${YELLOW}"
 		echo
-	else
-		if [ -d $dbName ]; then
+		return 1
+	fi
+
+	if ! is_alpha "$dbName"; then
+		echo
+		echo -e "${RED} ${CROSSMARK} Fail: DB name can only contain alphabetic characters, _ and - ${YELLOW}"
+		echo
+		return 1
+	fi
+
+	if [ -d "$dbName" ]; then
 			echo
 			echo -e "${RED} ${CROSSMARK} Fail: This name already exist ${YELLOW}"
 			echo
-
-		else
-			if is_alpha $dbName; then
-				mkdir $dbName
-				echo
-				echo -e "${GREEN} ${CHECKMARK} Success: DB created Successfuly ${YELLOW}"
-				echo
-			else
-				echo
-				echo -e "${RED} ${CROSSMARK} Fail: DB name can only contain alphabetic characters and - ${YELLOW}"
-				echo
-			fi
-		fi
+			return 1
 	fi
+
+	mkdir "$dbName"
+	echo
+	echo -e "${GREEN} ${CHECKMARK} Success: DB created Successfuly ${YELLOW}"
+	echo
 }
 
-# Function to list all databases
+########## List All Databases ##########
 list_dbs() {
 	numberOfDbs=$(ls | wc -l)
 	if [ $numberOfDbs -eq 0 ]; then
@@ -155,62 +158,69 @@ list_dbs() {
 		ls
 		echo -e "${YELLOW}" 
 	fi
-
 }
 
-# Connect to database
+########## Connect To Database ##########
 connect_db() {
 	echo -ne "${ARROW} ${BLUE} Please enter a db name: ${YELLOW}"
 	read dbName
-	check_non_empty $dbName
-	if [ $? -ne 0 ] ; then
+
+	if ! check_non_empty "$dbName"; then
 		echo
 		echo -e "${RED} ${CROSSMARK} Fail: Db name can't be empty ${YELLOW}"
 		echo
-	else
-		if [ -d $dbName ]; then
-			echo
-			echo -e "${GREEN} ${CHECKMARK} Suceess: Connected to db: $dbName ${YELLOW}"
-			cd $dbName
-			PS3="${ARROW} (${dbName}) -- Please select an option: "
+		return 1
+	fi
 
-			# Render New Select Menu
-			render_table_control_menu
-		else
+	if [ ! -d "$dbName" ]; then
 			echo
 			echo -e "${RED} ${CROSSMARK} Fail: Invalid db name ${YELLOW}"
 			echo
-		fi
+			return 1
 	fi
+
+	echo
+	echo -e "${GREEN} ${CHECKMARK} Success: Connected to db:" $dbName" ${YELLOW}"
+	cd "$dbName"
+	PS3="${ARROW} (${dbName}) -- Please select an option: "
+
+	# Render New Select Menu
+	render_table_control_menu
 }
 
-# Function to drop database
+########## Drop Database ##########
 drop_db() {
 	echo -ne "${ARROW} ${BLUE} Please enter a db name: ${YELLOW}"
 	read dbName
-	check_non_empty $dbName
-	if [ $? -ne 0 ] ; then
+
+	if ! check_non_empty "$dbName"; then
 		echo
 		echo -e "${RED} ${CROSSMARK} Fail: Db name can't be empty ${YELLOW}"
 		echo
-	else
-		if [ -d $dbName ]; then
-			if confirm_deletion $dbName; then
-				rm -r $dbName
-				echo
-				echo -e "${GREEN} ${CHECKMARK} Suceess: Database dropped: $dbName ${YELLOW}"
-				echo
-			else
-				echo
-				echo -e "${RED} ${CROSSMARK} Fail: Database ${dbName} was not deleted. ${YELLOW}"
-				echo
-			fi
-		else
+		return 1
+	fi
+
+	if [ ! -d "$dbName" ]; then
 			echo
 			echo -e "${RED} ${CROSSMARK} Fail: Invalid db name ${YELLOW}"
 			echo
-		fi
+			return 1
 	fi
+
+	# Prompt the user for confirmation
+	echo -ne "${RED} ${ARROW} Are you sure you want to delete the database '$dbName'? (yes/y to confirm): ${YELLOW}"
+
+	if ! confirm_action "$dbName"; then
+		echo
+		echo -e "${RED} ${CROSSMARK} Fail: Database ${dbName} was not deleted. ${YELLOW}"
+		echo
+		return 1
+	fi
+
+	rm -r "$dbName"
+	echo
+	echo -e "${GREEN} ${CHECKMARK} Success: Dropped db : "$dbName" ${YELLOW}"
+	echo
 }
 
 
