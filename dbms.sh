@@ -51,17 +51,17 @@ is_column_exists() {
 
 # Function that prompts user to choose y/n for action confirmation 
 confirm_action() {
-	 read -p "${ARROW}: " choice
+	 read -p choice
 
-         # Convert the user's input to lowercase for case-insensitive comparison
-         choice=$(echo "$choice" | tr '[:upper:]' '[:lower:]')
- 
-         # Check if the input is 'yes' or 'y'
-         if [[ "$choice" == "yes" || "$choice" == "y" ]]; then
-                 return 0
-         else    
-                 return 1
-         fi
+	# Convert the user's input to lowercase for case-insensitive comparison
+	choice=$(echo "$choice" | tr '[:upper:]' '[:lower:]')
+
+	# Check if the input is 'yes' or 'y'
+	if [[ "$choice" == "yes" || "$choice" == "y" ]]; then
+					return 0
+	else    
+					return 1
+	fi
 }
 
 # Function to confirm deletion
@@ -274,105 +274,108 @@ is_duplicate_pk_value() {
 create_table() {
 	echo -ne "${ARROW} ${BLUE} Please enter a table name: ${YELLOW}"
 	read tblName
-	check_non_empty $tblName
-	if [ $? -ne 0 ] ; then
-                  echo
-                  echo -e "${RED} ${CROSSMARK} Fail: Table name can't be empty ${YELLOW}"
-                  echo
-	else
-		if [ -f $tblName ]; then
+
+	if ! check_non_empty "$tblName"; then
+		echo
+		echo -e "${RED} ${CROSSMARK} Fail: Db name can't be empty ${YELLOW}"
+		echo
+		return 1
+	fi
+
+  if [ -f $tblName ]; then
 			echo
 			echo -e "${RED} ${CROSSMARK} Fail: This name already exist ${YELLOW}"
 			echo
+			return 1
+  fi
 
-		else
-			if is_alpha $tblName; then
-				echo -ne "${ARROW} ${BLUE} Please enter number of columns: ${YELLOW}"
-				read numberOfCols
+  if ! is_alpha $tblName; then
+    echo
+    echo -e "${RED} ${CROSSMARK} Fail: table name can only contain alphabetic characters, _ and - ${YELLOW}"
+    echo
+		return 1
+  fi
 
-				while ! is_numeric $numberOfCols; do
-					echo
-					echo -e "${RED} ${CROSSMARK} Fail: Please enter a valid number ${YELLOW}"
-					echo
-					echo -ne "${ARROW} ${BLUE} Please enter number of columns: ${YELLOW}"
-					read numberOfCols
-				done
+  while true; do
+    echo -ne "${ARROW} ${BLUE} Please enter number of columns: ${YELLOW}"
+    read numberOfCols
 
-				touch .$tblName-metadata
+    if ! is_numeric $numberOfCols; then
+      echo
+      echo -e "${RED} ${CROSSMARK} Fail: Please enter a valid number ${YELLOW}"
+      echo
+      continue
+    fi
 
-				isPkExists=0
-				tableHeader=""
-				for ((i=1;i<=numberOfCols;i++)); do
-					line=""
+    break
+  done
 
-					while true; do
-						echo -ne "${ARROW} ${BLUE} column number $i name: ${YELLOW}"
-						read colName
-						
-						# Check if the column name is non-empty
-						if ! check_non_empty "$colName"; then
-								echo -e "${RED} ${CROSSMARK} Fail: Column name can't be empty ${YELLOW}"
-								continue
-						fi
-						
-						# Check if the column name contains only alphabetic characters and hyphen
-						if ! is_alpha "$colName"; then
-								echo -e "${RED} ${CROSSMARK} Fail: Column name can only contain alphabetic characters and - ${YELLOW}"
-								continue
-						fi
-						
-						# Check if the column name already exists
-						if is_column_exists $colName ".${tblName}-metadata"; then
-								echo -e "${RED} ${CROSSMARK} Fail: Column with the same name already exists ${YELLOW}"
-								continue
-						fi
-						
-						break
-					done
-					
-					line+=$colName:
-					if [ $i -eq $numberOfCols ]; then
-            tableHeader+=$colName
-          else
-            tableHeader+=$colName:
-          fi
+  touch .$tblName-metadata
 
-					echo
-					echo -e "${CYAN} ### Column Datatype Options Menu ###"
-					echo -e "-------------------------------------------------${YELLOW}"	
+  isPkExists=0
+  tableHeader=""
+  for ((i=1;i<=numberOfCols;i++)); do
+    line=""
 
-					line+=$(render_col_datatype_menu):
+    while true; do
+      echo -ne "${ARROW} ${BLUE} column number $i name: ${YELLOW}"
+      read colName
+      
+      # Check if the column name is non-empty
+      if ! check_non_empty "$colName"; then
+          echo -e "${RED} ${CROSSMARK} Fail: Column name can't be empty ${YELLOW}"
+          continue
+      fi
+      
+      # Check if the column name contains only alphabetic characters and hyphen
+      if ! is_alpha "$colName"; then
+          echo -e "${RED} ${CROSSMARK} Fail: Column name can only contain alphabetic characters and - ${YELLOW}"
+          continue
+      fi
+      
+      # Check if the column name already exists
+      if is_column_exists $colName ".${tblName}-metadata"; then
+          echo -e "${RED} ${CROSSMARK} Fail: Column with the same name already exists ${YELLOW}"
+          continue
+      fi
+      
+      break
+    done
+    
+    line+=$colName:
 
-					if [ $isPkExists -eq 0 ]; then
-						echo -ne "${ARROW} ${BLUE} Do you want to make column: $colName the primary key: ${YELLOW}"
-						if confirm_action; then
-							line+=pk
-							isPkExists=1
-						else
-						line+="null"
-						fi
-					else
-						line+="null"
-					fi
+    if [ $i -eq $numberOfCols ]; then
+      tableHeader+=$colName
+    else
+      tableHeader+=$colName:
+    fi
 
-					echo $line >> .$tblName-metadata
-				done
-					echo $tableHeader > $tblName
+    echo
+    echo -e "${CYAN} ### Column Datatype Options Menu ###"
+    echo -e "-------------------------------------------------${YELLOW}"	
 
-				## touch $tblName
-			
-				echo
-				echo -e "${GREEN} ${CHECKMARK} Success: Table created Successfully ${YELLOW}"
-				echo	
-			
-			else
-				echo
-				echo -e "${RED} ${CROSSMARK} Fail: table name can only contain alphabetic characters and - ${YELLOW}"
-				echo
-			fi
-		fi
-	fi
+    line+=$(render_col_datatype_menu):
 
+    if [ $isPkExists -eq 0 ]; then
+      echo -ne "${ARROW} ${BLUE} Do you want to make column: $colName the primary key: ${YELLOW}"
+      if confirm_action; then
+        line+=pk
+        isPkExists=1
+      else
+      line+="null"
+      fi
+    else
+      line+="null"
+    fi
+
+    echo $line >> .$tblName-metadata
+  done
+
+  echo $tableHeader > $tblName
+
+  echo
+  echo -e "${GREEN} ${CHECKMARK} Success: Table created Successfully ${YELLOW}"
+  echo	
 }
 
 insert_into() {
