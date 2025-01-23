@@ -585,6 +585,175 @@ delete_from() {
 
 }
 
+# Function to update a record in a table
+update_table() {
+  echo -ne "${ARROW} ${BLUE} Please enter a table name: ${YELLOW}"
+  read tblName
+
+  # Empty Table Name
+  check_non_empty $tblName
+  if [ $? -ne 0 ]; then
+    echo
+    echo -e "${RED} ${CROSSMARK} Fail: Table name can't be empty ${YELLOW}"
+    echo
+    return 1
+  fi
+
+  # Invalid Table Name
+  if [ ! -f $tblName ]; then
+    echo
+    echo -e "${RED} ${CROSSMARK} Fail: Invalid table name ${YELLOW}"
+    echo
+    return 1
+  fi
+
+  # Check metadata file
+  metaFile=".${tblName}-metadata"
+  if [ ! -f $metaFile ]; then
+    echo
+    echo -e "${RED} ${CROSSMARK} Fail: Metadata file not found for the table ${YELLOW}"
+    echo
+    return 1
+  fi
+
+	echo -ne "${ARROW} ${BLUE} Please enter the column name to update: ${YELLOW}"
+  read updateColName
+
+  check_non_empty $updateColName
+  if [ $? -ne 0 ]; then
+    echo
+    echo -e "${RED} ${CROSSMARK} Fail: Column name can't be empty ${YELLOW}"
+    echo
+    return 1
+  fi
+
+  # Column name doesn't exist
+  if ! is_column_exists $updateColName "$metaFile"; then
+    echo -e "${RED} ${CROSSMARK} Fail: Column doesn't exist ${YELLOW}"
+    return 1
+  fi
+
+  # Extract column constraints
+  colConstraint=$(awk -F: -v col="$updateColName" '$1 == col {print $2":"$3}' "$metaFile")
+  colType=$(echo "$colConstraint" | cut -d: -f1)
+  colRule=$(echo "$colConstraint" | cut -d: -f2)
+
+  echo -ne "${ARROW} ${BLUE} Please enter the new value for the column: ${YELLOW}"
+  read updateColValue
+  check_non_empty $updateColValue
+  if [ $? -ne 0 ]; then
+    echo
+    echo -e "${RED} ${CROSSMARK} Fail: Value can't be empty ${YELLOW}"
+    echo
+    return 1
+  fi
+
+  # Validate value type
+  if [ "$colType" == "int" ]; then
+		if ! is_numeric $updateColValue; then
+			echo
+			echo -e "${RED} ${CROSSMARK} Fail: Value must be an integer ${YELLOW}"
+			echo
+			return 1
+		fi
+  fi
+
+  if [ "$colType" == "str" ]; then
+		if ! is_alpha $updateColValue; then
+			echo
+			echo -e "${RED} ${CROSSMARK} Fail: Value must be a string ${YELLOW}"
+			echo
+			return 1
+		fi
+  fi
+
+  # Check for primary key constraint
+  if [ "$colRule" == "pk" ]; then
+		# Find the column number of the primary key
+		pkColNum=$(awk -F: -v col="$updateColName" '
+			NR == 1 {
+				for (i = 1; i <= NF; i++) {
+					if ($i == col) print i;
+				}
+			}
+		' "$tblName")
+
+		if is_duplicate_pk_value "$pkColNum" "$tblName" "$updateColValue"; then
+			echo
+			echo -e "${RED} ${CROSSMARK} Fail: Duplicate value violates primary key constraint ${YELLOW}"
+			echo
+			return 1
+		fi
+  fi
+
+  echo -ne "${ARROW} ${BLUE} Please enter the column name for the WHERE clause: ${YELLOW}"
+  read whereColName
+
+  check_non_empty $whereColName
+  if [ $? -ne 0 ]; then
+    echo
+    echo -e "${RED} ${CROSSMARK} Fail: Column name can't be empty ${YELLOW}"
+    echo
+    return 1
+  fi
+
+  # Column name doesn't exist
+  if ! is_column_exists $whereColName "$metaFile"; then
+    echo -e "${RED} ${CROSSMARK} Fail: Column doesn't exist ${YELLOW}"
+    return 1
+  fi
+
+  echo -ne "${ARROW} ${BLUE} Please enter the value for the WHERE clause: ${YELLOW}"
+  read whereColValue
+  check_non_empty $whereColValue
+  if [ $? -ne 0 ]; then
+    echo
+    echo -e "${RED} ${CROSSMARK} Fail: Value can't be empty ${YELLOW}"
+    echo
+    return 1
+  fi
+
+	# Update records 
+	affectedRows=$(awk -v whereColName="$whereColName" -v whereColValue="$whereColValue" \
+			-v updateColName="$updateColName" -v updateColValue="$updateColValue" '
+		BEGIN { FS = ":"; OFS = ":"; count = 0 }
+		NR == 1 {
+			print > "temp_file";  # Write header to temp_file
+			for (i = 1; i <= NF; i++) {
+				if ($i == whereColName) whereColIndex = i;
+				if ($i == updateColName) updateColIndex = i;
+			}
+			if (!whereColIndex || !updateColIndex) {
+				exit 1;
+			}
+			next;
+		}
+		{
+			if ($whereColIndex == whereColValue) {
+				$updateColIndex = updateColValue;
+				count++;
+			}
+			print > "temp_file";
+		}
+		END { print count }
+		' "$tblName")
+
+	# Check for errors and handle the output
+	if [ $? -ne 0 ]; then
+		echo
+		echo -e "${RED} ${CROSSMARK} Fail: Update failed due to an error ${YELLOW}"
+		echo
+		return 1
+	fi
+
+	# Replace the original table with the updated temp file
+	mv temp_file "$tblName"
+
+	echo
+	echo -e "${GREEN} ${CHECKMARK} Success: $affectedRows record(s) updated ${YELLOW}"
+	echo
+}
+
 return_to_main_menu() {	
 	cd ..	
 	PS3="${ARROW} Please select an option: "
@@ -606,7 +775,7 @@ render_table_control_menu() {
 			insert_into) insert_into;;
 			select_from) echo Selecting...;;
 			delete_from) delete_from;;
-			update_table) echo Updating...;;
+			update_table) update_table;;
 			main_menu)
 				return_to_main_menu
 				return
