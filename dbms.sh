@@ -51,7 +51,7 @@ is_column_exists() {
 
 # Function that prompts user to choose y/n for action confirmation 
 confirm_action() {
-	 read -p choice
+	 read choice
 
 	# Convert the user's input to lowercase for case-insensitive comparison
 	choice=$(echo "$choice" | tr '[:upper:]' '[:lower:]')
@@ -271,6 +271,7 @@ is_duplicate_pk_value() {
 	fi
 }
 
+########## Create Table ##########
 create_table() {
 	echo -ne "${ARROW} ${BLUE} Please enter a table name: ${YELLOW}"
 	read tblName
@@ -378,6 +379,7 @@ create_table() {
   echo	
 }
 
+########## Insert Into Table ##########
 insert_into() {
 	echo -ne "${ARROW} ${BLUE} Please enter a table name: ${YELLOW}"
   read tblName
@@ -449,6 +451,7 @@ insert_into() {
   
 }
 
+########## List Tables ##########
 list_tables() {
 	numberOfTables=$(ls | wc -l)
 	if [ $numberOfTables -eq 0 ]; then
@@ -463,66 +466,41 @@ list_tables() {
 	fi
 }
 
-
+########## Drop Table ##########
 drop_table() {
 	echo -ne "${ARROW} ${BLUE} Please enter a table name: ${YELLOW}"
 	read tblName
-	check_non_empty $tblName
-	if [ $? -ne 0 ] ; then
+
+	if ! check_non_empty "$tblName"; then
 		echo
-		echo -e "${RED} ${CROSSMARK} Fail: Table name can't be empty ${YELLOW}"
+		echo -e "${RED} ${CROSSMARK} Fail: Db name can't be empty ${YELLOW}"
 		echo
-	else
-		if [ -f $tblName ]; then
-			if confirm_deletion $tblName; then
-				rm $tblName
-				rm .$tblName-metadata
-				echo
-				echo Dropping table...
-				echo -e "${GREEN} ${CHECKMARK} Success: Table dropped: $tblName ${YELLOW}"
-				echo
-			else
-				echo
-				echo -e "${RED} ${CROSSMARK} Fail: Table ${tblName} was not deleted. ${YELLOW}"
-				echo
-			fi
-		else
-			echo
-			echo -e "${RED} ${CROSSMARK} Fail: Invalid table name ${YELLOW}"
-			echo
-		fi
+		return 1
 	fi
+
+	if [ ! -f $tblName ]; then
+		echo
+		echo -e "${RED} ${CROSSMARK} Fail: Invalid table name ${YELLOW}"
+		echo
+		return 1
+	fi
+
+	# Prompt the user for confirmation
+	echo -ne "${RED} ${ARROW} Are you sure you want to delete table '$dbName'? (yes/y to confirm): ${YELLOW}"
+
+	if ! confirm_action $tblName; then
+		echo
+		echo -e "${RED} ${CROSSMARK} Fail: Table ${tblName} was not deleted. ${YELLOW}"
+		echo
+		return 1
+	fi
+
+	rm $tblName
+	rm .$tblName-metadata
+	echo
+	echo -e "${GREEN} ${CHECKMARK} Success: Table dropped: $tblName ${YELLOW}"
+	echo
 }
-
-# select_from() {
-# 	echo -ne "${ARROW} ${BLUE} Please enter a table name: ${YELLOW}"
-# 	read tblName
-# 	check_non_empty $tblName
-# 	if [ $? -ne 0 ] ; then
-# 		echo
-# 		echo -e "${RED} ${CROSSMARK} Fail: Table name can't be empty ${YELLOW}"
-# 		echo
-# 	else
-# 		if [ -f $tblName ]; then
-# 			numberOfCols=$(wc -l .$tblName-metadata | cut -d" " -f1)
-#     read colName
-# 			for ((i=1; i<=numberOfCols; i++)); do
-# 				col=$(sed -n "${i}p" .$tblName-metadata)
-# 				colName=$(echo $col | cut -d: -f1)
-# 				colDataType=$(echo $col | cut -d: -f2)
-# 				echo -e "${CYAN} ${colName} (${colDataType}) ${YELLOW}"
-# 			done
-# 			echo
-# 			echo -e "${GREEN} ${CHECKMARK} Success: Table selected ${YELLOW}"
-# 			echo
-# 		else
-# 			echo
-# 			echo -e "${RED} ${CROSSMARK} Fail: Invalid table name ${YELLOW}"
-# 			echo
-# 		fi
-# 	fi
-# }
-
 
 # Function to delete a record from a table
 delete_from() {
