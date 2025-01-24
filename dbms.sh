@@ -386,26 +386,26 @@ insert_into() {
 		return 1
 	fi
 
-  if [ ! -f $tblName ]; then
+  if [ ! -f "$tblName" ]; then
 			echo
 			echo -e "${RED} ${CROSSMARK} Fail: This table doesn't exist ${YELLOW}"
 			echo
 			return 1
   fi
 
-	numberOfCols=$(wc -l .$tblName-metadata | cut -d" " -f1)
+	numberOfCols=$(wc -l ".$tblName-metadata" | cut -d" " -f1)
 	line=""
 	for ((i=1; i<=numberOfCols; i++)); do
-		col=$(sed -n "${i}p" .$tblName-metadata)
+		col=$(sed -n "${i}p" ".$tblName-metadata")
 		colName=$(echo $col | cut -d: -f1)
 		colDataType=$(echo $col | cut -d: -f2)
 		colPkCheck=$(echo $col | cut -d: -f3)
 
 		while true; do
-			echo -ne "${ARROW} ${BLUE} Please enter value for column: $colName ($colDataType): ${YELLOW}"
+			echo -ne "${ARROW} ${BLUE} Please enter value for column: "$colName" ("$colDataType"): ${YELLOW}"
 			read value
 
-			case $colDataType in
+			case "$colDataType" in
 				str) if [[ "$value" == *:* ]]; then
 						echo -e "${RED} ${CROSSMARK} Fail: Value should not contain ':' ${YELLOW}"
 						continue
@@ -413,14 +413,14 @@ insert_into() {
 						value="NULL"
 				fi
           ;;
-				int) if ! is_numeric $value; then
+				int) if ! is_numeric "$value"; then
 					echo -e "${RED} ${CROSSMARK} Fail: Value should be a number ${YELLOW}"
 					continue
 					fi
 			esac
 
 			if [[ $colPkCheck == "pk" ]]; then
-				if is_duplicate_pk_value $i $tblName $value; then
+				if is_duplicate_pk_value "$i" "$tblName" "$value"; then
 					echo -e "${RED} ${CROSSMARK} Fail: Duplicate primary key value ${YELLOW}"
 					continue
 				fi
@@ -430,15 +430,15 @@ insert_into() {
 		done
 
 		# To prevent printing ":" at the end of the last column
-		if [ $i -eq $numberOfCols ]; then
-			line+=$value
+		if [ $i -eq "$numberOfCols" ]; then
+			line+="$value"
 		else
-			line+=$value:
+			line+="$value:"
 		fi
 
 	done
 	
-	echo $line >> $tblName
+	echo "$line" >> "$tblName"
 
 	echo
 	echo -e "${GREEN} ${CHECKMARK} Success: Row inserted successfully ${YELLOW}"
@@ -462,65 +462,141 @@ list_tables() {
 }
 
 ########## select from Tables ##########
-select_from() {
-	echo -ne "${ARROW} ${BLUE} Please enter a table name: ${YELLOW}"
-	read tblName
-	check_non_empty $tblName
-	if [ $? -ne 0 ] ; then
-		echo
-		echo -e "${RED} ${CROSSMARK} Fail: Table name can't be empty ${YELLOW}"
-		echo
-	else
-		if [ -f $tblName ]; then
-			# awk -F: '{print $0}' $tblName
-			echo -ne "${ARROW} ${BLUE} Please enter a column name or * for all: ${YELLOW}"
-			read columnName
-			if [[ -z "$columnName" ]]; then
-				echo
-				echo -e "${RED} ${CROSSMARK} Fail: Column name can't be empty ${YELLOW}"
-				echo
-			else
-				if [ "$columnName" == "*" ]; then
-					echo -e "${GREEN}"
-					awk -F: 'BEGIN {OFS="\t"} {print $0}' $tblName
-					echo -e "${YELLOW}"
-				elif is_column_exists $columnName ".$tblName-metadata"; then
-					if [ "$columnName" != "*" ]; then
-						awk -F: -v colName="$columnName" '
-						BEGIN { OFS = "\t" }
-						NR == 1 {
-							for (i = 1; i <= NF; i++) {
-								if ($i == colName) {
-									colIndex = i;
-									break;
-								}
-							}
-							if (!colIndex) {
-								print "Error: Column '"colName"' not found in header.";
-								exit 1;
-							}
+select_from(){
+    echo -ne "${ARROW} ${BLUE} Please enter a table name: ${YELLOW}"
+    read tblName
+
+    if ! check_non_empty "$tblName"; then
+        echo
+        echo -e "${RED} ${CROSSMARK} Fail: Table name can't be empty ${YELLOW}"
+        echo
+        return 1
+    fi
+
+    if [ ! -f "$tblName" ]; then
+        echo
+        echo -e "${RED} ${CROSSMARK} Fail: Invalid table name ${YELLOW}"
+        echo
+        return 1
+    fi
+
+    # Get the Column name from user
+    echo -ne "${ARROW} ${BLUE} Please enter a column name or * for all: ${YELLOW}"
+    read columnName
+
+    if ! check_non_empty "$columnName"; then
+        echo
+        echo -e "${RED} ${CROSSMARK} Fail: Column name can't be empty ${YELLOW}"
+        echo
+        return 1
+    fi
+
+    if [ "$columnName" == "*" ]; then
+        columnName=$(head -n 1 "$tblName" | tr ':' ' ')
+    fi
+
+    columns=($columnName)
+
+    # Validate if all columns exist
+    metadataFile=".$tblName-metadata"
+    for col in "${columns[@]}"; do
+        if ! is_column_exists "$col" "$metadataFile"; then
+            echo
+            echo -e "${RED} ${CROSSMARK} Fail: Invalid column name '$col' ${YELLOW}"
+            echo
+            return 1
+        fi
+    done
+
+    columnIndexes=()
+    for col in "${columns[@]}"; do    
+        index=$(awk -F':' -v col="$col" '{ if ($1 == col) { print NR } }' $metadataFile)
+        if [ -z "$index" ]; then
+            echo -e "${RED} ${CROSSMARK} Fail: Column '$col' does not exist in metadata ${YELLOW}"
+            return 1
+        fi
+        columnIndexes+=("$index")
+    done
+
+    # Ask if the user wants to apply a WHERE clause filter
+    echo -ne "${ARROW} ${BLUE} Do you want to apply a WHERE clause filter? (yes/y or no/n): ${YELLOW}"
+		# Print the entire column if user don't want to specify where clause
+		if ! confirm_action; then
+			echo -e "${GREEN}"
+        awk -v cols="${columnIndexes[*]}" '
+        BEGIN { FS = ":"; OFS = "\t|\t" }
+        {
+						if (NR == 1) {
+							print "________________________________________________________________________________________________________"
+							print ""
 						}
-						NR > 1 {
-							print $colIndex;
+            split(cols, arr, " ")
+            for (i in arr) {
+                printf "%s", $arr[i]
+                if (i < length(arr)) printf OFS
+            }
+            print ""
+						if (NR == 1) {
+							print "________________________________________________________________________________________________________"
+							print ""
 						}
-						' "$tblName"
-					else
-						echo
-						echo -e "${RED} ${CROSSMARK} Fail: Invalid column name 1 ${YELLOW}"
-						echo
-					fi
-				else
-					echo
-					echo -e "${RED} ${CROSSMARK} Fail: Invalid column name 2 ${YELLOW}"
-					echo
-				fi
+        }
+        ' $tblName
+        echo -e "${YELLOW}"
+				return 0
 			fi
-		else
-			echo
-			echo -e "${RED} ${CROSSMARK} Fail: Invalid table name ${YELLOW}"
-			echo
+
+    # Ask for the column and value for the WHERE clause
+		echo -ne "${ARROW} ${BLUE} Please enter the WHERE clause column: ${YELLOW}"
+		read whereColumn
+	
+		# Validate if the WHERE column exists in the table's metadata
+		if ! is_column_exists "$whereColumn" "$metadataFile"; then
+				echo -e "${RED} ${CROSSMARK} Fail: Invalid WHERE column '$whereColumn' ${YELLOW}"
+				return 1
 		fi
-	fi
+
+		echo -ne "${ARROW} ${BLUE} Please enter the WHERE clause value: ${YELLOW}"
+		read whereValue
+
+
+	# Print the selected columns with the WHERE filter applied
+	echo -e "${GREEN}"
+	awk -v cols="${columnIndexes[*]}" -v whereCol="$whereColumn" -v whereVal="$whereValue" '
+	BEGIN { FS = ":"; OFS = "\t|\t" }
+	{
+    if (NR == 1) {
+			print "________________________________________________________________________________________________________" 
+			print "" 
+			split(cols, arr, " ")
+			for (i in arr) {
+					printf "%s", $arr[i]
+					if (i < length(arr)) printf OFS
+			}
+			print "" 
+			print "________________________________________________________________________________________________________" 
+			print "" 
+
+			whereIndex = 0
+			for (i = 1; i <= NF; i++) {
+					if ($i == whereCol) {
+							whereIndex = i
+							break
+					}
+			}
+    }
+
+    if (whereIndex > 0 && $whereIndex == whereVal) {
+        split(cols, arr, " ")
+        for (i in arr) {
+            printf "%s", $arr[i]  
+            if (i < length(arr)) printf OFS
+        }
+        print ""  # print a newline after each row
+    }
+	}
+	' $tblName
+		echo -e "${YELLOW}"
 }
 
 ########## Drop Table ##########
@@ -535,7 +611,7 @@ drop_table() {
 		return 1
 	fi
 
-	if [ ! -f $tblName ]; then
+	if [ ! -f "$tblName" ]; then
 		echo
 		echo -e "${RED} ${CROSSMARK} Fail: Invalid table name ${YELLOW}"
 		echo
@@ -545,17 +621,17 @@ drop_table() {
 	# Prompt the user for confirmation
 	echo -ne "${RED} ${ARROW} Are you sure you want to delete table '$dbName'? (yes/y to confirm): ${YELLOW}"
 
-	if ! confirm_action $tblName; then
+	if ! confirm_action "$tblName"; then
 		echo
 		echo -e "${RED} ${CROSSMARK} Fail: Table ${tblName} was not deleted. ${YELLOW}"
 		echo
 		return 1
 	fi
 
-	rm $tblName
-	rm .$tblName-metadata
+	rm "$tblName"
+	rm ".$tblName-metadata"
 	echo
-	echo -e "${GREEN} ${CHECKMARK} Success: Table dropped: $tblName ${YELLOW}"
+	echo -e "${GREEN} ${CHECKMARK} Success: Table dropped: "$tblName" ${YELLOW}"
 	echo
 }
 
