@@ -24,7 +24,7 @@ ARROW="→"
 # =====> Helper Functions <=====
 # Function to check if the input is alphabetic
 is_alpha() {
-    if [[ "$1" =~ ^[a-zA-Z-]+$ && -n "$1" ]]; then
+    if [[ "$1" =~ ^[a-zA-Z_-]+$ ]]; then
         return 0  
     else
         return 1  
@@ -51,17 +51,17 @@ is_column_exists() {
 
 # Function that prompts user to choose y/n for action confirmation 
 confirm_action() {
-	 read -p "${ARROW}: " choice
+	 read choice
 
-         # Convert the user's input to lowercase for case-insensitive comparison
-         choice=$(echo "$choice" | tr '[:upper:]' '[:lower:]')
- 
-         # Check if the input is 'yes' or 'y'
-         if [[ "$choice" == "yes" || "$choice" == "y" ]]; then
-                 return 0
-         else    
-                 return 1
-         fi
+	# Convert the user's input to lowercase for case-insensitive comparison
+	choice=$(echo "$choice" | tr '[:upper:]' '[:lower:]')
+
+	# Check if the input is 'yes' or 'y'
+	if [[ "$choice" == "yes" || "$choice" == "y" ]]; then
+					return 0
+	else    
+					return 1
+	fi
 }
 
 # Function to confirm deletion
@@ -111,38 +111,41 @@ display_sub_menu_options() {
 	echo
 }
 
-# =====> Main Menu Functions <=====
-# Function to handle db creation option
+# =====> Main Menu Functions <===== #
+
+########## Create Database ##########
 create_db() {
 	echo -ne "${ARROW} ${BLUE} Please enter a db name: ${YELLOW}"
 	read dbName
-	check_non_empty $dbName
-	if [ $? -ne 0 ] ; then
+
+	if ! check_non_empty "$dbName"; then
 		echo
 		echo -e "${RED} ${CROSSMARK} Fail: Db name can't be empty ${YELLOW}"
 		echo
-	else
-		if [ -d $dbName ]; then
+		return 1
+	fi
+
+	if ! is_alpha "$dbName"; then
+		echo
+		echo -e "${RED} ${CROSSMARK} Fail: DB name can only contain alphabetic characters, _ and - ${YELLOW}"
+		echo
+		return 1
+	fi
+
+	if [ -d "$dbName" ]; then
 			echo
 			echo -e "${RED} ${CROSSMARK} Fail: This name already exist ${YELLOW}"
 			echo
-
-		else
-			if is_alpha $dbName; then
-				mkdir $dbName
-				echo
-				echo -e "${GREEN} ${CHECKMARK} Success: DB created Successfuly ${YELLOW}"
-				echo
-			else
-				echo
-				echo -e "${RED} ${CROSSMARK} Fail: DB name can only contain alphabetic characters and - ${YELLOW}"
-				echo
-			fi
-		fi
+			return 1
 	fi
+
+	mkdir "$dbName"
+	echo
+	echo -e "${GREEN} ${CHECKMARK} Success: DB created Successfuly ${YELLOW}"
+	echo
 }
 
-# Function to list all databases
+########## List All Databases ##########
 list_dbs() {
 	numberOfDbs=$(ls | wc -l)
 	if [ $numberOfDbs -eq 0 ]; then
@@ -155,62 +158,69 @@ list_dbs() {
 		ls
 		echo -e "${YELLOW}" 
 	fi
-
 }
 
-# Connect to database
+########## Connect To Database ##########
 connect_db() {
 	echo -ne "${ARROW} ${BLUE} Please enter a db name: ${YELLOW}"
 	read dbName
-	check_non_empty $dbName
-	if [ $? -ne 0 ] ; then
+
+	if ! check_non_empty "$dbName"; then
 		echo
 		echo -e "${RED} ${CROSSMARK} Fail: Db name can't be empty ${YELLOW}"
 		echo
-	else
-		if [ -d $dbName ]; then
-			echo
-			echo -e "${GREEN} ${CHECKMARK} Suceess: Connected to db: $dbName ${YELLOW}"
-			cd $dbName
-			PS3="${ARROW} (${dbName}) -- Please select an option: "
+		return 1
+	fi
 
-			# Render New Select Menu
-			render_table_control_menu
-		else
+	if [ ! -d "$dbName" ]; then
 			echo
 			echo -e "${RED} ${CROSSMARK} Fail: Invalid db name ${YELLOW}"
 			echo
-		fi
+			return 1
 	fi
+
+	echo
+	echo -e "${GREEN} ${CHECKMARK} Success: Connected to db:" $dbName" ${YELLOW}"
+	cd "$dbName"
+	PS3="${ARROW} (${dbName}) -- Please select an option: "
+
+	# Render New Select Menu
+	render_table_control_menu
 }
 
-# Function to drop database
+########## Drop Database ##########
 drop_db() {
 	echo -ne "${ARROW} ${BLUE} Please enter a db name: ${YELLOW}"
 	read dbName
-	check_non_empty $dbName
-	if [ $? -ne 0 ] ; then
+
+	if ! check_non_empty "$dbName"; then
 		echo
 		echo -e "${RED} ${CROSSMARK} Fail: Db name can't be empty ${YELLOW}"
 		echo
-	else
-		if [ -d $dbName ]; then
-			if confirm_deletion $dbName; then
-				rm -r $dbName
-				echo
-				echo -e "${GREEN} ${CHECKMARK} Suceess: Database dropped: $dbName ${YELLOW}"
-				echo
-			else
-				echo
-				echo -e "${RED} ${CROSSMARK} Fail: Database ${dbName} was not deleted. ${YELLOW}"
-				echo
-			fi
-		else
+		return 1
+	fi
+
+	if [ ! -d "$dbName" ]; then
 			echo
 			echo -e "${RED} ${CROSSMARK} Fail: Invalid db name ${YELLOW}"
 			echo
-		fi
+			return 1
 	fi
+
+	# Prompt the user for confirmation
+	echo -ne "${RED} ${ARROW} Are you sure you want to delete the database '$dbName'? (yes/y to confirm): ${YELLOW}"
+
+	if ! confirm_action "$dbName"; then
+		echo
+		echo -e "${RED} ${CROSSMARK} Fail: Database ${dbName} was not deleted. ${YELLOW}"
+		echo
+		return 1
+	fi
+
+	rm -r "$dbName"
+	echo
+	echo -e "${GREEN} ${CHECKMARK} Success: Dropped db : "$dbName" ${YELLOW}"
+	echo
 }
 
 
@@ -261,179 +271,187 @@ is_duplicate_pk_value() {
 	fi
 }
 
+########## Create Table ##########
 create_table() {
 	echo -ne "${ARROW} ${BLUE} Please enter a table name: ${YELLOW}"
 	read tblName
-	check_non_empty $tblName
-	if [ $? -ne 0 ] ; then
-                  echo
-                  echo -e "${RED} ${CROSSMARK} Fail: Table name can't be empty ${YELLOW}"
-                  echo
-	else
-		if [ -f $tblName ]; then
+
+	if ! check_non_empty "$tblName"; then
+		echo
+		echo -e "${RED} ${CROSSMARK} Fail: Db name can't be empty ${YELLOW}"
+		echo
+		return 1
+	fi
+
+  if [ -f $tblName ]; then
 			echo
 			echo -e "${RED} ${CROSSMARK} Fail: This name already exist ${YELLOW}"
 			echo
+			return 1
+  fi
 
-		else
-			if is_alpha $tblName; then
-				echo -ne "${ARROW} ${BLUE} Please enter number of columns: ${YELLOW}"
-				read numberOfCols
+  if ! is_alpha $tblName; then
+    echo
+    echo -e "${RED} ${CROSSMARK} Fail: table name can only contain alphabetic characters, _ and - ${YELLOW}"
+    echo
+		return 1
+  fi
 
-				while ! is_numeric $numberOfCols; do
-					echo
-					echo -e "${RED} ${CROSSMARK} Fail: Please enter a valid number ${YELLOW}"
-					echo
-					echo -ne "${ARROW} ${BLUE} Please enter number of columns: ${YELLOW}"
-					read numberOfCols
-				done
+  while true; do
+    echo -ne "${ARROW} ${BLUE} Please enter number of columns: ${YELLOW}"
+    read numberOfCols
 
-				touch .$tblName-metadata
+    if ! is_numeric $numberOfCols; then
+      echo
+      echo -e "${RED} ${CROSSMARK} Fail: Please enter a valid number ${YELLOW}"
+      echo
+      continue
+    fi
 
-				isPkExists=0
-				tableHeader=""
-				for ((i=1;i<=numberOfCols;i++)); do
-					line=""
+    break
+  done
 
-					while true; do
-						echo -ne "${ARROW} ${BLUE} column number $i name: ${YELLOW}"
-						read colName
-						
-						# Check if the column name is non-empty
-						if ! check_non_empty "$colName"; then
-								echo -e "${RED} ${CROSSMARK} Fail: Column name can't be empty ${YELLOW}"
-								continue
-						fi
-						
-						# Check if the column name contains only alphabetic characters and hyphen
-						if ! is_alpha "$colName"; then
-								echo -e "${RED} ${CROSSMARK} Fail: Column name can only contain alphabetic characters and - ${YELLOW}"
-								continue
-						fi
-						
-						# Check if the column name already exists
-						if is_column_exists $colName ".${tblName}-metadata"; then
-								echo -e "${RED} ${CROSSMARK} Fail: Column with the same name already exists ${YELLOW}"
-								continue
-						fi
-						
-						break
-					done
-					
-					line+=$colName:
-					if [ $i -eq $numberOfCols ]; then
-            tableHeader+=$colName
-          else
-            tableHeader+=$colName:
-          fi
+  touch .$tblName-metadata
 
-					echo
-					echo -e "${CYAN} ### Column Datatype Options Menu ###"
-					echo -e "-------------------------------------------------${YELLOW}"	
+  isPkExists=0
+  tableHeader=""
+  for ((i=1;i<=numberOfCols;i++)); do
+    line=""
 
-					line+=$(render_col_datatype_menu):
+    while true; do
+      echo -ne "${ARROW} ${BLUE} column number $i name: ${YELLOW}"
+      read colName
+      
+      # Check if the column name is non-empty
+      if ! check_non_empty "$colName"; then
+          echo -e "${RED} ${CROSSMARK} Fail: Column name can't be empty ${YELLOW}"
+          continue
+      fi
+      
+      # Check if the column name contains only alphabetic characters and hyphen
+      if ! is_alpha "$colName"; then
+          echo -e "${RED} ${CROSSMARK} Fail: Column name can only contain alphabetic characters and - ${YELLOW}"
+          continue
+      fi
+      
+      # Check if the column name already exists
+      if is_column_exists $colName ".${tblName}-metadata"; then
+          echo -e "${RED} ${CROSSMARK} Fail: Column with the same name already exists ${YELLOW}"
+          continue
+      fi
+      
+      break
+    done
+    
+    line+=$colName:
 
-					if [ $isPkExists -eq 0 ]; then
-						echo -ne "${ARROW} ${BLUE} Do you want to make column: $colName the primary key: ${YELLOW}"
-						if confirm_action; then
-							line+=pk
-							isPkExists=1
-						else
-						line+="null"
-						fi
-					else
-						line+="null"
-					fi
+    if [ $i -eq $numberOfCols ]; then
+      tableHeader+=$colName
+    else
+      tableHeader+=$colName:
+    fi
 
-					echo $line >> .$tblName-metadata
-				done
-					echo $tableHeader > $tblName
+    echo
+    echo -e "${CYAN} ### Column Datatype Options Menu ###"
+    echo -e "-------------------------------------------------${YELLOW}"	
 
-				## touch $tblName
-			
-				echo
-				echo -e "${GREEN} ${CHECKMARK} Success: Table created Successfully ${YELLOW}"
-				echo	
-			
-			else
-				echo
-				echo -e "${RED} ${CROSSMARK} Fail: table name can only contain alphabetic characters and - ${YELLOW}"
-				echo
-			fi
-		fi
-	fi
+    line+=$(render_col_datatype_menu):
 
+    if [ $isPkExists -eq 0 ]; then
+      echo -ne "${ARROW} ${BLUE} Do you want to make column: $colName the primary key: ${YELLOW}"
+      if confirm_action; then
+        line+=pk
+        isPkExists=1
+      else
+      line+="null"
+      fi
+    else
+      line+="null"
+    fi
+
+    echo $line >> .$tblName-metadata
+  done
+
+  echo $tableHeader > $tblName
+
+  echo
+  echo -e "${GREEN} ${CHECKMARK} Success: Table created Successfully ${YELLOW}"
+  echo	
 }
 
+########## Insert Into Table ##########
 insert_into() {
 	echo -ne "${ARROW} ${BLUE} Please enter a table name: ${YELLOW}"
   read tblName
-  check_non_empty $tblName
-  if [ $? -ne 0 ] ; then
-	  echo
-    echo -e "${RED} ${CROSSMARK} Fail: Table name can't be empty ${YELLOW}"
-    echo
-  else
-		if [ -f $tblName ]; then
-			numberOfCols=$(wc -l .$tblName-metadata | cut -d" " -f1)
-			line=""
-			for ((i=1; i<=numberOfCols; i++)); do
-			  col=$(sed -n "${i}p" .$tblName-metadata)
-				colName=$(echo $col | cut -d: -f1)
-				colDataType=$(echo $col | cut -d: -f2)
-				colPkCheck=$(echo $col | cut -d: -f3)
 
-				while true; do
-					echo -ne "${ARROW} ${BLUE} Please enter value for column: $colName ($colDataType): ${YELLOW}"
-        	read value
-					if ! check_non_empty "$value"; then
-					  echo -e "${RED} ${CROSSMARK} Fail: Value can't be empty ${YELLOW}"
-            continue
-          fi
-					case $colDataType in
-						str) if ! is_alpha $value; then
-							echo -e "${RED} ${CROSSMARK} Fail: Value should be a string ${YELLOW}"
-							continue
-							fi
-							;;
-						int) if ! is_numeric $value; then
-							echo -e "${RED} ${CROSSMARK} Fail: Value should be a number ${YELLOW}"
-							continue
-							fi
-					esac
-
-					if [[ $colPkCheck == "pk" ]]; then
-					  if is_duplicate_pk_value $i $tblName $value; then
-						  echo -e "${RED} ${CROSSMARK} Fail: Duplicate primary key value ${YELLOW}"
-              continue
-            fi
-          fi
-
-					break
-				done
-
-				# To prevent printing ":" at the end of the last column
-				if [ $i -eq $numberOfCols ]; then
-					line+=$value
-				else
-					line+=$value:
-				fi
-
-      done
-			echo $line >> $tblName
-      echo
-      echo -e "${GREEN} ${CHECKMARK} Success: Row inserted successfully ${YELLOW}"
-      echo
-		else
-		  echo
-      echo -e "${RED} ${CROSSMARK} Fail: Invalid table name ${YELLOW}"
-      echo
-		fi
-    
-
+	if ! check_non_empty "$tblName"; then
+		echo
+		echo -e "${RED} ${CROSSMARK} Fail: Db name can't be empty ${YELLOW}"
+		echo
+		return 1
 	fi
+
+  if [ ! -f $tblName ]; then
+			echo
+			echo -e "${RED} ${CROSSMARK} Fail: This table doesn't exist ${YELLOW}"
+			echo
+			return 1
+  fi
+
+	numberOfCols=$(wc -l .$tblName-metadata | cut -d" " -f1)
+	line=""
+	for ((i=1; i<=numberOfCols; i++)); do
+		col=$(sed -n "${i}p" .$tblName-metadata)
+		colName=$(echo $col | cut -d: -f1)
+		colDataType=$(echo $col | cut -d: -f2)
+		colPkCheck=$(echo $col | cut -d: -f3)
+
+		while true; do
+			echo -ne "${ARROW} ${BLUE} Please enter value for column: $colName ($colDataType): ${YELLOW}"
+			read value
+
+			case $colDataType in
+				str) if [[ "$value" == *:* ]]; then
+						echo -e "${RED} ${CROSSMARK} Fail: Value should not contain ':' ${YELLOW}"
+						continue
+				elif ! check_non_empty "$value"; then
+						value="NULL"
+				fi
+          ;;
+				int) if ! is_numeric $value; then
+					echo -e "${RED} ${CROSSMARK} Fail: Value should be a number ${YELLOW}"
+					continue
+					fi
+			esac
+
+			if [[ $colPkCheck == "pk" ]]; then
+				if is_duplicate_pk_value $i $tblName $value; then
+					echo -e "${RED} ${CROSSMARK} Fail: Duplicate primary key value ${YELLOW}"
+					continue
+				fi
+			fi
+
+			break
+		done
+
+		# To prevent printing ":" at the end of the last column
+		if [ $i -eq $numberOfCols ]; then
+			line+=$value
+		else
+			line+=$value:
+		fi
+
+	done
+	
+	echo $line >> $tblName
+
+	echo
+	echo -e "${GREEN} ${CHECKMARK} Success: Row inserted successfully ${YELLOW}"
+	echo
+  
 }
 
+########## List Tables ##########
 list_tables() {
 	numberOfTables=$(ls | wc -l)
 	if [ $numberOfTables -eq 0 ]; then
@@ -448,98 +466,41 @@ list_tables() {
 	fi
 }
 
-
+########## Drop Table ##########
 drop_table() {
 	echo -ne "${ARROW} ${BLUE} Please enter a table name: ${YELLOW}"
 	read tblName
-	check_non_empty $tblName
-	if [ $? -ne 0 ] ; then
-		echo
-		echo -e "${RED} ${CROSSMARK} Fail: Table name can't be empty ${YELLOW}"
-		echo
-	else
-		if [ -f $tblName ]; then
-			if confirm_deletion $tblName; then
-				rm $tblName
-				rm .$tblName-metadata
-				echo
-				echo Dropping table...
-				echo -e "${GREEN} ${CHECKMARK} Success: Table dropped: $tblName ${YELLOW}"
-				echo
-			else
-				echo
-				echo -e "${RED} ${CROSSMARK} Fail: Table ${tblName} was not deleted. ${YELLOW}"
-				echo
-			fi
-		else
-			echo
-			echo -e "${RED} ${CROSSMARK} Fail: Invalid table name ${YELLOW}"
-			echo
-		fi
-	fi
-}
 
-select_from() {
-	echo -ne "${ARROW} ${BLUE} Please enter a table name: ${YELLOW}"
-	read tblName
-	check_non_empty $tblName
-	if [ $? -ne 0 ] ; then
+	if ! check_non_empty "$tblName"; then
 		echo
-		echo -e "${RED} ${CROSSMARK} Fail: Table name can't be empty ${YELLOW}"
+		echo -e "${RED} ${CROSSMARK} Fail: Db name can't be empty ${YELLOW}"
 		echo
-	else
-		if [ -f $tblName ]; then
-			# awk -F: '{print $0}' $tblName
-			echo -ne "${ARROW} ${BLUE} Please enter a column name or * for all: ${YELLOW}"
-			read columnName
-			if [[ -z "$columnName" ]]; then
-				echo
-				echo -e "${RED} ${CROSSMARK} Fail: Column name can't be empty ${YELLOW}"
-				echo
-			else
-				if [ "$columnName" == "*" ]; then
-					echo -e "${GREEN}"
-					awk -F: 'BEGIN {OFS="\t"} {print $0}' $tblName
-					echo -e "${YELLOW}"
-				elif is_column_exists $columnName ".$tblName-metadata"; then
-					if [ "$columnName" != "*" ]; then
-						awk -F: -v colName="$columnName" '
-						BEGIN { OFS = "\t" }
-						NR == 1 {
-							for (i = 1; i <= NF; i++) {
-								if ($i == colName) {
-									colIndex = i;
-									break;
-								}
-							}
-							if (!colIndex) {
-								print "Error: Column '"colName"' not found in header.";
-								exit 1;
-							}
-						}
-						NR > 1 {
-							print $colIndex;
-						}
-						' "$tblName"
-					else
-						echo
-						echo -e "${RED} ${CROSSMARK} Fail: Invalid column name 1 ${YELLOW}"
-						echo
-					fi
-				else
-					echo
-					echo -e "${RED} ${CROSSMARK} Fail: Invalid column name 2 ${YELLOW}"
-					echo
-				fi
-			fi
-		else
-			echo
-			echo -e "${RED} ${CROSSMARK} Fail: Invalid table name ${YELLOW}"
-			echo
-		fi
+		return 1
 	fi
-}
 
+	if [ ! -f $tblName ]; then
+		echo
+		echo -e "${RED} ${CROSSMARK} Fail: Invalid table name ${YELLOW}"
+		echo
+		return 1
+	fi
+
+	# Prompt the user for confirmation
+	echo -ne "${RED} ${ARROW} Are you sure you want to delete table '$dbName'? (yes/y to confirm): ${YELLOW}"
+
+	if ! confirm_action $tblName; then
+		echo
+		echo -e "${RED} ${CROSSMARK} Fail: Table ${tblName} was not deleted. ${YELLOW}"
+		echo
+		return 1
+	fi
+
+	rm $tblName
+	rm .$tblName-metadata
+	echo
+	echo -e "${GREEN} ${CHECKMARK} Success: Table dropped: $tblName ${YELLOW}"
+	echo
+}
 
 # Function to delete a record from a table
 delete_from() {
