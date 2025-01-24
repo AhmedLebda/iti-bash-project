@@ -25,7 +25,7 @@ ARROW="→"
 
 ########## Check For Alphabetic , _ , -  ##########
 is_alpha() {
-    if [[ "$1" =~ ^[a-zA-Z_-]+$ ]]; then
+		if [[ "$1" =~ ^[a-zA-Z]+([_-][a-zA-Z]*)*$ || "$1" =~ ^[_-][a-zA-Z]+([_-][a-zA-Z]*)*$ ]]; then
         return 0  
     else
         return 1  
@@ -121,7 +121,7 @@ create_db() {
 
 	if ! is_alpha "$dbName"; then
 		echo
-		echo -e "${RED} ${CROSSMARK} Fail: DB name can only contain alphabetic characters, _ and - ${YELLOW}"
+		echo -e "${RED} ${CROSSMARK} Fail: DB name can only contain alphabetic characters, _ and - (name can't be only _ or -) ${YELLOW}"
 		echo
 		return 1
 	fi
@@ -287,7 +287,7 @@ create_table() {
 
   if ! is_alpha $tblName; then
     echo
-    echo -e "${RED} ${CROSSMARK} Fail: table name can only contain alphabetic characters, _ and - ${YELLOW}"
+    echo -e "${RED} ${CROSSMARK} Fail: table name can only contain alphabetic characters, _ and - (name can't be only _ or -) ${YELLOW}"
     echo
 		return 1
   fi
@@ -325,7 +325,7 @@ create_table() {
       
       # Check if the column name contains only alphabetic characters and hyphen
       if ! is_alpha "$colName"; then
-          echo -e "${RED} ${CROSSMARK} Fail: Column name can only contain alphabetic characters and - ${YELLOW}"
+          echo -e "${RED} ${CROSSMARK} Fail: Column name can only contain alphabetic characters and - (name can't be only _ or -) ${YELLOW}"
           continue
       fi
       
@@ -766,13 +766,6 @@ update_table() {
 
   echo -ne "${ARROW} ${BLUE} Please enter the new value for the column: ${YELLOW}"
   read updateColValue
-  check_non_empty $updateColValue
-  if [ $? -ne 0 ]; then
-    echo
-    echo -e "${RED} ${CROSSMARK} Fail: Value can't be empty ${YELLOW}"
-    echo
-    return 1
-  fi
 
   # Validate value type
   if [ "$colType" == "int" ]; then
@@ -785,13 +778,15 @@ update_table() {
   fi
 
   if [ "$colType" == "str" ]; then
-		if ! is_alpha $updateColValue; then
-			echo
-			echo -e "${RED} ${CROSSMARK} Fail: Value must be a string ${YELLOW}"
-			echo
+		if [[ "$updateColValue" == *:* ]]; then
+			echo -e "${RED} ${CROSSMARK} Fail: Value should not contain ':' ${YELLOW}"
 			return 1
+  	fi
+
+		if ! check_non_empty "$updateColValue"; then
+				updateColValue="NULL"	
 		fi
-  fi
+	fi
 
   # Check for primary key constraint
   if [ "$colRule" == "pk" ]; then
