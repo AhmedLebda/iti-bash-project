@@ -7,7 +7,7 @@ mkdir -p Databases
 
 cd Databases/
 
-# Colors
+########## Colors ##########
 RED='\033[31m'
 GREEN='\033[1;32m'
 YELLOW='\033[1;33m'
@@ -15,14 +15,15 @@ BLUE='\033[1;34m'
 CYAN='\033[1;36m'
 RESET='\033[0m'
 
-# Symbols
+########## Symbols ##########
 CHECKMARK="✔"
 CROSSMARK="✘"
 ARROW="→"
 
 
 # =====> Helper Functions <=====
-# Function to check if the input is alphabetic
+
+########## Check For Alphabetic , _ , -  ##########
 is_alpha() {
     if [[ "$1" =~ ^[a-zA-Z_-]+$ ]]; then
         return 0  
@@ -32,6 +33,7 @@ is_alpha() {
 }
 
 # Function to check if the input is numeric
+########## Check For Numeric ##########
 is_numeric() {
     if [[ "$1" =~ ^[0-9]+$ ]]; then
         return 0 
@@ -40,7 +42,7 @@ is_numeric() {
     fi
 }
 
-# check if a column exists in a table
+########## Check If A Column Exists In A Table ##########
 is_column_exists() {
     if grep -wq "$1" "$2"; then
         return 0  
@@ -49,7 +51,7 @@ is_column_exists() {
     fi
 }
 
-# Function that prompts user to choose y/n for action confirmation 
+########## prompts user to choose y/n for action confirmation ##########
 confirm_action() {
 	 read choice
 
@@ -64,16 +66,7 @@ confirm_action() {
 	fi
 }
 
-# Function to confirm deletion
-confirm_deletion() {
-
-	# Prompt the user for confirmation
-	echo -e "${RED} ${ARROW} Are you sure you want to delete the database '$1'? (yes/y to confirm): ${YELLOW}"
-
-	confirm_action
-}
-
-# Function to ensure input is not empty
+########### Ensure input is not empty ##########
 check_non_empty() {
     if [[ -z "$1" ]]; then
         return 1  
@@ -82,13 +75,14 @@ check_non_empty() {
     fi
 }
 
-# Exists the application
+########## Exists the application ##########
 exit_app() {	
 	echo -e "${CYAN} Exiting..."
 	sleep .5
 	exit 0
 }
 
+########## Display The Main Menu Options ##########
 display_main_menu_options() {
     	echo
 	echo -e "${CYAN} ### Main Menu (Database Creation Options) ###"
@@ -99,7 +93,7 @@ display_main_menu_options() {
     	echo
 }
 
-# Function to display the menu
+########## Display The Sub Menu Options ##########
 display_sub_menu_options() {
 	echo
 	echo -e "${CYAN} ### Table Creation Options Menu ###"
@@ -223,8 +217,7 @@ drop_db() {
 	echo
 }
 
-
-# Function to show the main menu
+########## Show The Main Menu ##########
 render_main_menu() {
 	echo
 	echo -e "${CYAN} ### Main Menu (Database Creation Options) ###"
@@ -250,7 +243,9 @@ render_main_menu() {
 	done	
 }
 
-# =====> Sub-Menu Functions <=====
+# =====> Sub-Menu Functions <===== #
+
+########## Show Choose Datatype Menu ##########
 render_col_datatype_menu() {
 	options=(str int)
 	select option in ${options[@]}; do
@@ -261,7 +256,7 @@ render_col_datatype_menu() {
 	done
 }
 
-# Function to check if the value already exists
+########## Check If The Value Already Exists ##########
 # Usage: column-Number, table_name, entered_value
 is_duplicate_pk_value() {
 	if awk -F ":" -v value="$3" '{if ($1 == value) found=1} END {exit !found}' "$2"; then
@@ -502,7 +497,7 @@ drop_table() {
 	echo
 }
 
-# Function to delete a record from a table
+########## Delete A Record From A Table ##########
 delete_from() {
 	echo -ne "${ARROW} ${BLUE} Please enter a table name: ${YELLOW}"
   read tblName
@@ -578,7 +573,7 @@ delete_from() {
 
 }
 
-# Function to update a record in a table
+########## Update A Record In A Table ##########
 update_table() {
   echo -ne "${ARROW} ${BLUE} Please enter a table name: ${YELLOW}"
   read tblName
@@ -747,13 +742,14 @@ update_table() {
 	echo
 }
 
+########## Return To The Main Menu ##########
 return_to_main_menu() {	
 	cd ..	
 	PS3="${ARROW} Please select an option: "
 	display_main_menu_options
 }
 
-# Function to show table controls menu
+########## Show Sub-Menu (Table Controls Menu) ##########
 render_table_control_menu() {
 	dml=(create_table list_tables drop_table insert_into select_from delete_from update_table main_menu clear_screen quit)
 	echo
