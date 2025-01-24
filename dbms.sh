@@ -278,14 +278,14 @@ create_table() {
 		return 1
 	fi
 
-  if [ -f $tblName ]; then
+  if [ -f "$tblName" ]; then
 			echo
 			echo -e "${RED} ${CROSSMARK} Fail: This name already exist ${YELLOW}"
 			echo
 			return 1
   fi
 
-  if ! is_alpha $tblName; then
+  if ! is_alpha "$tblName"; then
     echo
     echo -e "${RED} ${CROSSMARK} Fail: table name can only contain alphabetic characters, _ and - (name can't be only _ or -) ${YELLOW}"
     echo
@@ -296,7 +296,7 @@ create_table() {
     echo -ne "${ARROW} ${BLUE} Please enter number of columns: ${YELLOW}"
     read numberOfCols
 
-    if ! is_numeric $numberOfCols; then
+    if ! is_numeric "$numberOfCols"; then
       echo
       echo -e "${RED} ${CROSSMARK} Fail: Please enter a valid number ${YELLOW}"
       echo
@@ -306,7 +306,7 @@ create_table() {
     break
   done
 
-  touch .$tblName-metadata
+  touch ".$tblName-metadata"
 
   isPkExists=0
   tableHeader=""
@@ -330,7 +330,7 @@ create_table() {
       fi
       
       # Check if the column name already exists
-      if is_column_exists $colName ".${tblName}-metadata"; then
+      if is_column_exists "$colName" ".${tblName}-metadata"; then
           echo -e "${RED} ${CROSSMARK} Fail: Column with the same name already exists ${YELLOW}"
           continue
       fi
@@ -338,12 +338,12 @@ create_table() {
       break
     done
     
-    line+=$colName:
+    line+="$colName:"
 
     if [ $i -eq $numberOfCols ]; then
-      tableHeader+=$colName
+      tableHeader+="$colName"
     else
-      tableHeader+=$colName:
+      tableHeader+="$colName:"
     fi
 
     echo
@@ -352,8 +352,8 @@ create_table() {
 
     line+=$(render_col_datatype_menu):
 
-    if [ $isPkExists -eq 0 ]; then
-      echo -ne "${ARROW} ${BLUE} Do you want to make column: $colName the primary key: ${YELLOW}"
+    if [ "$isPkExists" -eq 0 ]; then
+      echo -ne "${ARROW} ${BLUE} Do you want to make column: "$colName" the primary key: ${YELLOW}"
       if confirm_action; then
         line+=pk
         isPkExists=1
@@ -364,10 +364,10 @@ create_table() {
       line+="null"
     fi
 
-    echo $line >> .$tblName-metadata
+    echo $line >> ".$tblName-metadata"
   done
 
-  echo $tableHeader > $tblName
+  echo $tableHeader > "$tblName"
 
   echo
   echo -e "${GREEN} ${CHECKMARK} Success: Table created Successfully ${YELLOW}"
@@ -413,17 +413,24 @@ insert_into() {
 						value="NULL"
 				fi
           ;;
-				int) if ! is_numeric "$value"; then
+				int) if ! check_non_empty "$value"; then
+						value="NULL"
+					elif ! is_numeric "$value"; then
 					echo -e "${RED} ${CROSSMARK} Fail: Value should be a number ${YELLOW}"
 					continue
 					fi
 			esac
 
-			if [[ $colPkCheck == "pk" ]]; then
+			if [[ "$colPkCheck" == "pk" ]]; then
 				if is_duplicate_pk_value "$i" "$tblName" "$value"; then
 					echo -e "${RED} ${CROSSMARK} Fail: Duplicate primary key value ${YELLOW}"
 					continue
 				fi
+
+				if [[ "$value" == "NULL" ]]; then
+				  echo -e "${RED} ${CROSSMARK} Fail: Primary key can't be NULL ${YELLOW}"
+          continue
+        fi
 			fi
 
 			break
