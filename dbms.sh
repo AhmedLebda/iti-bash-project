@@ -490,27 +490,48 @@ select_from() {
 	else
 		if [ -f $tblName ]; then
 			# awk -F: '{print $0}' $tblName
-			echo -ne "${ARROW} ${BLUE} Please enter a column name: ${YELLOW}"
+			echo -ne "${ARROW} ${BLUE} Please enter a column name or * for all: ${YELLOW}"
 			read columnName
 			if [[ -z "$columnName" ]]; then
 				echo
 				echo -e "${RED} ${CROSSMARK} Fail: Column name can't be empty ${YELLOW}"
 				echo
 			else
-				if is_column_exists $columnName ".$tblName-metadata"; then
-					awk -F: '{print $0}' $tblName | cut -d: -f1
-					echo
-					echo -e "${GREEN} ${CHECKMARK} Success: Table selected ${YELLOW}"
-					echo
+				if [ "$columnName" == "*" ]; then
+					echo -e "${GREEN}"
+					awk -F: 'BEGIN {OFS="\t"} {print $0}' $tblName
+					echo -e "${YELLOW}"
+				elif is_column_exists $columnName ".$tblName-metadata"; then
+					if [ "$columnName" != "*" ]; then
+						awk -F: -v colName="$columnName" '
+						BEGIN { OFS = "\t" }
+						NR == 1 {
+							for (i = 1; i <= NF; i++) {
+								if ($i == colName) {
+									colIndex = i;
+									break;
+								}
+							}
+							if (!colIndex) {
+								print "Error: Column '"colName"' not found in header.";
+								exit 1;
+							}
+						}
+						NR > 1 {
+							print $colIndex;
+						}
+						' "$tblName"
+					else
+						echo
+						echo -e "${RED} ${CROSSMARK} Fail: Invalid column name 1 ${YELLOW}"
+						echo
+					fi
 				else
 					echo
-					echo -e "${RED} ${CROSSMARK} Fail: Invalid column name ${YELLOW}"
+					echo -e "${RED} ${CROSSMARK} Fail: Invalid column name 2 ${YELLOW}"
 					echo
 				fi
 			fi
-			echo
-			echo -e "${GREEN} ${CHECKMARK} Success: Table selected ${YELLOW}"
-			echo
 		else
 			echo
 			echo -e "${RED} ${CROSSMARK} Fail: Invalid table name ${YELLOW}"
