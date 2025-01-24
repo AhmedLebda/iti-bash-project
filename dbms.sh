@@ -684,31 +684,47 @@ delete_from() {
     return 1
   fi
 
-	# Use awk to filter and delete rows
-	awk -v colName="$colName" -v colValue="$colValue" '
-  BEGIN { FS = ":"; OFS = ":" } 
-  NR==1 { 
-		print; 
-    for(i=1;i<=NF;i++){
-      if($i==colName){ 
-        colIndex=i; 
-        next; 
-      }
-    }
-    print "Error: Column '"colName"' not found in header."; 
-    exit 1; 
-  }
-  { 
-    if(NR==1 || $colIndex != colValue) { 
-      print $0; 
-    }
-  }
-	' "$tblName" > temp_file && mv temp_file "$tblName"
 
+	deletedRows=$(awk -v colName="$colName" -v colValue="$colValue" '
+		BEGIN { FS = ":"; OFS = ":"; deletedRows = 0 } 
+		NR == 1 { 
+			print > "temp_file"; 
+			for (i = 1; i <= NF; i++) {
+				if ($i == colName) colIndex = i;
+			}
+			if (!colIndex) {
+				print "Error: Column '"colName"' not found in header.";
+				exit 1;
+			}
+			next;
+		}
+		{
+			if ($colIndex != colValue) {
+				print > "temp_file";
+			} else {
+				deletedRows++;
+			}
+		}
+		END {
+			print deletedRows;
+		}
+	' "$tblName")
+
+	# Check for errors and handle the output
+	if [ $? -ne 0 ]; then
+		echo
+		echo -e "${RED} ${CROSSMARK} Fail: Deletion failed due to an error ${YELLOW}"
+		echo
+		return 1
+	fi
+
+	# Replace the original table with the updated temp file
+	mv temp_file "$tblName"
+
+	# Provide the success message along with the number of deleted rows
 	echo
-  echo -e "${GREEN} ${CHECKMARK} Success: Row(s) deleted successfully ${YELLOW}"
-  echo
-
+	echo -e "${GREEN} ${CHECKMARK} Success: $deletedRows record(s) deleted ${YELLOW}"
+	echo
 }
 
 ########## Update A Record In A Table ##########
@@ -839,7 +855,7 @@ update_table() {
 			-v updateColName="$updateColName" -v updateColValue="$updateColValue" '
 		BEGIN { FS = ":"; OFS = ":"; count = 0 }
 		NR == 1 {
-			print > "temp_file";  # Write header to temp_file
+			print > "temp_file";  
 			for (i = 1; i <= NF; i++) {
 				if ($i == whereColName) whereColIndex = i;
 				if ($i == updateColName) updateColIndex = i;
