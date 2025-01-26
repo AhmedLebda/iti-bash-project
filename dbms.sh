@@ -35,6 +35,18 @@ is_alpha() {
     fi
 }
 
+########## Check For Valid String (Except :)  ##########
+is_valid_string() {
+    if [[ "$1" =~ ^[^:]*[a-zA-Z][^:]*$ ]]; then
+        return 0  
+    else
+        echo
+        echo -e "${RED} ${CROSSMARK} Error: The string must contain at least one alphabetic character and cannot contain colons (:). ${YELLOW}"
+        echo
+        return 1  
+    fi
+}
+
 # Function to check if the input is numeric
 ########## Check For Numeric ##########
 is_numeric() {
@@ -401,11 +413,11 @@ insert_into() {
 			read value
 
 			case "$colDataType" in
-				str) if [[ "$value" == *:* ]]; then
-						echo -e "${RED} ${CROSSMARK} Fail: Value should not contain ':' ${YELLOW}"
-						continue
-				elif ! check_non_empty "$value"; then
+			
+				str) if ! check_non_empty "$value"; then
 						value="NULL"
+				elif ! is_valid_string "$value"; then
+						continue
 				fi
           ;;
 				int) if ! check_non_empty "$value"; then
@@ -792,13 +804,10 @@ update_table() {
   fi
 
   if [ "$colType" == "str" ]; then
-		if [[ "$updateColValue" == *:* ]]; then
-			echo -e "${RED} ${CROSSMARK} Fail: Value should not contain ':' ${YELLOW}"
-			return 1
-  	fi
-
 		if ! check_non_empty "$updateColValue"; then
 				updateColValue="NULL"	
+		elif ! is_valid_string "$updateColValue"; then
+						return 1
 		fi
 	fi
 
