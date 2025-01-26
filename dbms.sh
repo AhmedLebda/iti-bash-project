@@ -23,11 +23,14 @@ ARROW="→"
 
 # =====> Helper Functions <=====
 
-########## Check For Alphabetic , _ , -  ##########
+########## Check For Alphanumeric , _ , -  ##########
 is_alpha() {
-		if [[ "$1" =~ ^[a-zA-Z]+([_-][a-zA-Z]*)*$ || "$1" =~ ^[_-][a-zA-Z]+([_-][a-zA-Z]*)*$ ]]; then
+    if [[ "$1" =~ ^[a-zA-Z0-9_-]*[a-zA-Z][a-zA-Z0-9_-]*$ ]]; then
         return 0  
     else
+				echo
+				echo -e "${RED} ${CROSSMARK} Error: The string must contain at least one alphabetic character and can only include alphanumeric characters, underscores (_), and hyphens (-). ${YELLOW}"
+				echo
         return 1  
     fi
 }
@@ -38,6 +41,9 @@ is_numeric() {
     if [[ "$1" =~ ^[0-9]+$ ]]; then
         return 0 
     else
+				echo
+				echo -e "${RED} ${CROSSMARK} Error: Please enter a valid number ${YELLOW}"
+				echo
         return 1  
     fi
 }
@@ -120,9 +126,6 @@ create_db() {
 	fi
 
 	if ! is_alpha "$dbName"; then
-		echo
-		echo -e "${RED} ${CROSSMARK} Fail: DB name can only contain alphabetic characters, _ and - (name can't be only _ or -) ${YELLOW}"
-		echo
 		return 1
 	fi
 
@@ -286,9 +289,6 @@ create_table() {
   fi
 
   if ! is_alpha "$tblName"; then
-    echo
-    echo -e "${RED} ${CROSSMARK} Fail: table name can only contain alphabetic characters, _ and - (name can't be only _ or -) ${YELLOW}"
-    echo
 		return 1
   fi
 
@@ -297,9 +297,6 @@ create_table() {
     read numberOfCols
 
     if ! is_numeric "$numberOfCols"; then
-      echo
-      echo -e "${RED} ${CROSSMARK} Fail: Please enter a valid number ${YELLOW}"
-      echo
       continue
     fi
 
@@ -323,9 +320,7 @@ create_table() {
           continue
       fi
       
-      # Check if the column name contains only alphabetic characters and hyphen
       if ! is_alpha "$colName"; then
-          echo -e "${RED} ${CROSSMARK} Fail: Column name can only contain alphabetic characters and - (name can't be only _ or -) ${YELLOW}"
           continue
       fi
       
@@ -416,8 +411,7 @@ insert_into() {
 				int) if ! check_non_empty "$value"; then
 						value="NULL"
 					elif ! is_numeric "$value"; then
-					echo -e "${RED} ${CROSSMARK} Fail: Value should be a number ${YELLOW}"
-					continue
+						continue
 					fi
 			esac
 
@@ -648,7 +642,7 @@ delete_from() {
   read tblName
 
 	# Empty Table Name
-  check_non_empty $tblName
+  check_non_empty "$tblName"
   if [ $? -ne 0 ]; then
     echo
     echo -e "${RED} ${CROSSMARK} Fail: Table name can't be empty ${YELLOW}"
@@ -657,7 +651,7 @@ delete_from() {
   fi
 
 	# Invalid Table Name
-	if [ ! -f $tblName ]; then
+	if [ ! -f "$tblName" ]; then
     echo
     echo -e "${RED} ${CROSSMARK} Fail: Invalid table name ${YELLOW}"
     echo
@@ -667,7 +661,7 @@ delete_from() {
 	echo -ne "${ARROW} ${BLUE} Please enter the column name for the WHERE clause: ${YELLOW}"
   read colName
 
-	check_non_empty $colName
+	check_non_empty "$colName"
   if [ $? -ne 0 ]; then
     echo
     echo -e "${RED} ${CROSSMARK} Fail: Column name can't be empty ${YELLOW}"
@@ -676,14 +670,14 @@ delete_from() {
   fi
 
 	# column name doesn't exist
-	if ! is_column_exists $colName ".${tblName}-metadata"; then
+	if ! is_column_exists "$colName" ".${tblName}-metadata"; then
 			echo -e "${RED} ${CROSSMARK} Fail: Column doesn't exist ${YELLOW}"
 			return 1
 	fi
 
 	echo -ne "${ARROW} ${BLUE} Please enter the value for the WHERE clause: ${YELLOW}"
   read colValue
-	check_non_empty $colValue
+	check_non_empty "$colValue"
   if [ $? -ne 0 ]; then
     echo
     echo -e "${RED} ${CROSSMARK} Fail: Value can't be empty ${YELLOW}"
@@ -792,10 +786,7 @@ update_table() {
 
   # Validate value type
   if [ "$colType" == "int" ]; then
-		if ! is_numeric $updateColValue; then
-			echo
-			echo -e "${RED} ${CROSSMARK} Fail: Value must be an integer ${YELLOW}"
-			echo
+		if ! is_numeric "$updateColValue"; then
 			return 1
 		fi
   fi
@@ -859,7 +850,7 @@ update_table() {
 
 	# Update records 
 	affectedRows=$(awk -v whereColName="$whereColName" -v whereColValue="$whereColValue" \
-			-v updateColName="$updateColName" -v updateColValue="$updateColValue" '
+			-v updateColName="$updateColName" -v updateColValue="$updateColValue" -v updateColRule="$colRule" '
 		BEGIN { FS = ":"; OFS = ":"; count = 0 }
 		NR == 1 {
 			print > "temp_file";  
@@ -876,6 +867,9 @@ update_table() {
 			if ($whereColIndex == whereColValue) {
 				$updateColIndex = updateColValue;
 				count++;
+			}
+			if (count > 1 && updateColRule == "pk") {
+				exit 1;
 			}
 			print > "temp_file";
 		}
