@@ -97,6 +97,15 @@ check_non_empty() {
 exit_app() {	
 	echo -e "${CYAN} Exiting..."
 	sleep .5
+	cd ..
+	if [ -f "ThankYou.sh" ]; then
+		pwd
+		./ThankYou.sh
+	else
+	  pwd
+		cd ..
+		./ThankYou.sh
+	fi
 	exit 0
 }
 
